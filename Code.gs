@@ -1,0 +1,240 @@
+// Google Apps Script Backend for Dr. Janak Appointment System
+// Deploy as Web App with "Execute as: Me" and "Who has access: Anyone"
+// IMPORTANT: This script must be bound to the spreadsheet (Extensions > Apps Script from within the sheet)
+
+const APPOINTMENTS_SHEET = 'Appointments';
+const CONFIG_SHEET = 'Config';
+
+/**
+ * Handle GET requests - Fetch appointments
+ */
+function doGet(e) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
+    
+    if (!sheet) {
+      return createCORSResponse({ error: 'Appointments sheet not found' });
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+    
+    // Convert to array of objects
+    const appointments = rows.map(row => {
+      const obj = {};
+      headers.forEach((header, index) => {
+        obj[header] = row[index];
+      });
+      return obj;
+    }).filter(apt => apt.id); // Filter out empty rows
+    
+    // Optional filtering by date
+    const filterDate = e.parameter.date;
+    if (filterDate) {
+      const filtered = appointments.filter(apt => apt.date === filterDate);
+      return createCORSResponse({ success: true, appointments: filtered });
+    }
+    
+    return createCORSResponse({ success: true, appointments });
+  } catch (error) {
+    return createCORSResponse({ error: error.toString() });
+  }
+}
+
+/**
+ * Handle OPTIONS requests for CORS preflight
+ */
+function doOptions(e) {
+  return createCORSResponse({});
+}
+
+/**
+ * Handle POST requests - Create, Update, or Delete appointments
+ */
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const action = data.action || 'create';
+    
+    switch (action) {
+      case 'create':
+        return createAppointment(data);
+      case 'update':
+        return updateAppointment(data);
+      case 'delete':
+        return deleteAppointment(data);
+      default:
+        return createCORSResponse({ error: 'Invalid action' });
+    }
+  } catch (error) {
+    return createCORSResponse({ error: error.toString() });
+  }
+}
+
+/**
+ * Create a new appointment
+ */
+function createAppointment(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
+  
+  if (!sheet) {
+    return createCORSResponse({ error: 'Appointments sheet not found' });
+  }
+  
+  // Check if phone number exists to determine type
+  const existingData = sheet.getDataRange().getValues();
+  const phoneColumn = existingData[0].indexOf('phone');
+  const existingPhones = existingData.slice(1).map(row => row[phoneColumn]);
+  
+  const type = existingPhones.includes(data.phone) ? 'Old' : 'New';
+  
+  // Generate new ID
+  const lastRow = sheet.getLastRow();
+  const newId = lastRow > 1 ? 
+    Math.max(...existingData.slice(1).map(row => parseInt(row[0]) || 0)) + 1 : 1;
+  
+  // Create new appointment row
+  const timestamp = new Date().toISOString();
+  const newRow = [
+    newId,
+    timestamp,
+    data.patientName || '',
+    data.phone || '',
+    data.date || '',
+    data.time || '',
+    type,
+    data.status || 'Scheduled',
+    data.notes || ''
+  ];
+  
+  sheet.appendRow(newRow);
+  
+  return createCORSResponse({
+    success: true,
+    appointment: {
+      id: newId,
+      timestamp,
+      patientName: data.patientName,
+      phone: data.phone,
+      date: data.date,
+      time: data.time,
+      type,
+      status: data.status || 'Scheduled',
+      notes: data.notes || ''
+    }
+  });
+}
+
+/**
+ * Update an existing appointment
+ */
+function updateAppointment(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
+  
+  if (!sheet) {
+    return createCORSResponse({ error: 'Appointments sheet not found' });
+  }
+  
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  const idColumn = headers.indexOf('id');
+  
+  // Find the row with matching ID
+  const rowIndex = allData.findIndex((row, index) => 
+    index > 0 && row[idColumn] === data.id
+  );
+  
+  if (rowIndex === -1) {
+    return createCORSResponse({ error: 'Appointment not found' });
+  }
+  
+  // Update status (or other fields as needed)
+  if (data.status) {
+    const statusColumn = headers.indexOf('status');
+    sheet.getRange(rowIndex + 1, statusColumn + 1).setValue(data.status);
+  }
+  
+  if (data.notes !== undefined) {
+    const notesColumn = headers.indexOf('notes');
+    sheet.getRange(rowIndex + 1, notesColumn + 1).setValue(data.notes);
+  }
+  
+  return createCORSResponse({ success: true, message: 'Appointment updated' });
+}
+
+/**
+ * Delete an appointment
+ */
+function deleteAppointment(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
+  
+  if (!sheet) {
+    return createCORSResponse({ error: 'Appointments sheet not found' });
+  }
+  
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  const idColumn = headers.indexOf('id');
+  
+  // Find the row with matching ID
+  const rowIndex = allData.findIndex((row, index) => 
+    index > 0 && row[idColumn] === data.id
+  );
+  
+  if (rowIndex === -1) {
+    return createCORSResponse({ error: 'Appointment not found' });
+  }
+  
+  sheet.deleteRow(rowIndex + 1);
+  
+  return createCORSResponse({ success: true, message: 'Appointment deleted' });
+}
+
+/**
+ * Create JSON response with proper CORS headers
+ * This wraps the response to ensure CORS headers are set correctly
+ */
+function createCORSResponse(data) {
+  const output = ContentService.createTextOutput(JSON.stringify(data));
+  output.setMimeType(ContentService.MimeType.JSON);
+  
+  // CORS headers - Allow requests from any origin
+  output.setHeader('Access-Control-Allow-Origin', '*');
+  output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  output.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  output.setHeader('Access-Control-Max-Age', '86400');
+  
+  return output;
+}
+
+/**
+ * Initialize the spreadsheet with proper headers (run once)
+ */
+function initializeSpreadsheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // Create Appointments sheet
+  let appointmentsSheet = ss.getSheetByName(APPOINTMENTS_SHEET);
+  if (!appointmentsSheet) {
+    appointmentsSheet = ss.insertSheet(APPOINTMENTS_SHEET);
+  }
+  
+  // Set headers
+  const headers = ['id', 'timestamp', 'patientName', 'phone', 'date', 'time', 'type', 'status', 'notes'];
+  appointmentsSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  appointmentsSheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  
+  // Create Config sheet
+  let configSheet = ss.getSheetByName(CONFIG_SHEET);
+  if (!configSheet) {
+    configSheet = ss.insertSheet(CONFIG_SHEET);
+    configSheet.getRange('A1').setValue('Configuration');
+  }
+  
+  Logger.log('Spreadsheet initialized successfully');
+}
