@@ -29,7 +29,7 @@ function doGet(e) {
       });
       return obj;
     }).filter(apt => apt.id); // Filter out empty rows
-    
+    z
     // Optional filtering by date
     const filterDate = e.parameter.date;
     if (filterDate) {
