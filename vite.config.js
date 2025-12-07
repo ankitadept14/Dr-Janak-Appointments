@@ -49,5 +49,5 @@ export default defineConfig({
       }
     })
   ],
-  base: '/Dr-Janak-Appointments/'
+  base: process.env.VITE_BASE_URL || '/'
 })
