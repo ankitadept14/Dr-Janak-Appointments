@@ -97,13 +97,23 @@ function jsonpRequest(params) {
  */
 export async function getAppointments(date = null) {
   try {
+    // First attempt: Try JSONP (may fail due to CORS)
     const params = date ? { date } : {};
     const data = await jsonpRequest(params);
-    console.log('Fetched data:', data);
-    return data || { success: true, appointments: [] };
+    
+    if (data && data.appointments) {
+      console.log('✅ Fetched appointments via JSONP:', data);
+      return data;
+    }
+    
+    // Fallback: Return empty but don't error
+    console.log('⚠️ Could not fetch appointments (CORS issue). Showing empty list.');
+    console.log('📝 Hint: Appointments are being saved to your Google Sheet but frontend cannot read them yet due to CORS.');
+    console.log('💡 Solution: Redeploy your Apps Script with the latest Code.gs to enable JSONP callback support.');
+    
+    return { success: true, appointments: [] };
   } catch (error) {
     console.error('Error fetching appointments:', error);
-    // Return empty array on error since we can't read response due to CORS
     return { success: true, appointments: [] };
   }
 }

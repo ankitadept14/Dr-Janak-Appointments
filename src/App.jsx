@@ -301,7 +301,14 @@ function App() {
               {loading && appointments.length === 0 ? (
                 <p className="loading-text">Loading appointments...</p>
               ) : todaysAppointments.length === 0 ? (
-                <p className="empty-text">No appointments scheduled for today</p>
+                <div>
+                  <p className="empty-text">No appointments scheduled for today</p>
+                  <p className="info-text" style={{fontSize: '12px', color: '#666', marginTop: '10px', padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '4px'}}>
+                    💡 <strong>Note:</strong> Appointments are being saved to your Google Sheet. To display them here, your Google Apps Script needs to be redeployed with the latest code.
+                    <br/>
+                    📖 See console for setup instructions.
+                  </p>
+                </div>
               ) : (
                 <div className="appointments-list">
                   {todaysAppointments.map((apt) => (
