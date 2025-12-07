@@ -186,7 +186,7 @@ function createAppointment(data, e) {
   const newId = lastRow > 1 ? 
     Math.max(...existingData.slice(1).map(row => parseInt(row[0]) || 0)) + 1 : 1;
   
-  // Create new appointment row
+  // Create new appointment row with checkedIn field
   const timestamp = new Date().toISOString();
   const newRow = [
     newId,
@@ -197,6 +197,7 @@ function createAppointment(data, e) {
     data.time || '',
     type,
     data.status || 'Scheduled',
+    'No', // checkedIn default
     data.notes || ''
   ];
   
@@ -213,6 +214,7 @@ function createAppointment(data, e) {
       time: data.time,
       type,
       status: data.status || 'Scheduled',
+      checkedIn: 'No',
       notes: data.notes || ''
     }
   }, e);
@@ -240,9 +242,7 @@ function updateAppointment(data, e) {
   
   if (rowIndex === -1) {
     return createResponse({ error: 'Appointment not found' }, e);
-  }
-  
-  // Update status (or other fields as needed)
+  // Update fields as needed
   if (data.status) {
     const statusColumn = headers.indexOf('status');
     sheet.getRange(rowIndex + 1, statusColumn + 1).setValue(data.status);
@@ -252,6 +252,23 @@ function updateAppointment(data, e) {
     const notesColumn = headers.indexOf('notes');
     sheet.getRange(rowIndex + 1, notesColumn + 1).setValue(data.notes);
   }
+  
+  if (data.checkedIn !== undefined) {
+    const checkedInColumn = headers.indexOf('checkedIn');
+    sheet.getRange(rowIndex + 1, checkedInColumn + 1).setValue(data.checkedIn);
+  }
+  
+  if (data.date !== undefined) {
+    const dateColumn = headers.indexOf('date');
+    sheet.getRange(rowIndex + 1, dateColumn + 1).setValue(data.date);
+  }
+  
+  if (data.time !== undefined) {
+    const timeColumn = headers.indexOf('time');
+    sheet.getRange(rowIndex + 1, timeColumn + 1).setValue(data.time);
+  }
+  
+  return createResponse({ success: true, message: 'Appointment updated' }, e);
   
   return createResponse({ success: true, message: 'Appointment updated' }, e);
 }
@@ -321,8 +338,8 @@ function initializeSpreadsheet() {
     appointmentsSheet = ss.insertSheet(APPOINTMENTS_SHEET);
   }
   
-  // Set headers
-  const headers = ['id', 'timestamp', 'patientName', 'phone', 'date', 'time', 'type', 'status', 'notes'];
+  // Set headers - added 'checkedIn' field
+  const headers = ['id', 'timestamp', 'patientName', 'phone', 'date', 'time', 'type', 'status', 'checkedIn', 'notes'];
   appointmentsSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   appointmentsSheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
   
