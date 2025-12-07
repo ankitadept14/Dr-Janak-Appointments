@@ -117,8 +117,8 @@ export async function updateAppointment(id, updates) {
     console.error('Error updating appointment:', error);
     throw error;
   }
-}   throw error;
-  }
+}
+
 /**
  * Delete an appointment
  */
@@ -146,8 +146,6 @@ export async function deleteAppointment(id) {
   } catch (error) {
     console.error('Error deleting appointment:', error);
     throw error;
-  }
-}   throw error;
   }
 }
 
