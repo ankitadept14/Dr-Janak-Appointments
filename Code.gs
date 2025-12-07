@@ -92,6 +92,35 @@ function doPost(e) {
     const data = e && e.parameter ? e.parameter : {};
     const action = (data.action || 'create').toLowerCase();
     
+    // Also support action=read to fetch appointments via POST
+    if (action === 'read' || action === 'get') {
+      const filterDate = data.date || null;
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
+      
+      if (!sheet) {
+        return createResponse({ error: 'Appointments sheet not found' }, e);
+      }
+      
+      const sheetData = sheet.getDataRange().getValues();
+      const headers = sheetData[0];
+      const rows = sheetData.slice(1);
+      
+      const appointments = rows.map(row => {
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index];
+        });
+        return obj;
+      }).filter(apt => apt.id);
+      
+      const filtered = filterDate 
+        ? appointments.filter(apt => apt.date === filterDate)
+        : appointments;
+        
+      return createResponse({ success: true, appointments: filtered }, e);
+    }
+    
     switch (action) {
       case 'create':
         return createAppointment(data, e);

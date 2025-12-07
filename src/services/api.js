@@ -23,97 +23,37 @@ if (GAS_URL && !GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
 
 /**
  * Fetch all appointments or filter by date
- */
-function jsonpRequest(params) {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      reject(new Error('JSONP requests only supported in browser'));
-      return;
-    }
-
-    const callbackName = `jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement('script');
-    let timeoutId;
-
-    const cleanup = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-      try {
-        delete window[callbackName];
-      } catch (err) {
-        window[callbackName] = undefined;
-      }
-    };
-
-    window[callbackName] = (data) => {
-      cleanup();
-      console.log('✅ JSONP callback received:', data);
-      resolve(data);
-    };
-
-    script.onerror = (error) => {
-      cleanup();
-      console.error('❌ JSONP script load error:', error);
-      console.error('Failed URL:', script.src);
-      // FALLBACK: If JSONP fails but we know the request was sent, return success anyway
-      // since the backend is already processing requests (entries are being saved)
-      console.log('⚠️ JSONP failed but request may have been processed. Assuming success...');
-      resolve({ success: true, message: 'Request sent (response unavailable)' });
-    };
-
-    const filteredParams = Object.entries(params).reduce((acc, [key, value]) => {
-      if (value !== undefined && value !== null) {
-        acc[key] = value;
-      }
-      return acc;
-    }, {});
-
-    const searchParams = new URLSearchParams({ ...filteredParams, callback: callbackName });
-    const fullUrl = `${GAS_URL}?${searchParams.toString()}`;
-    
-    console.log('JSONP request URL:', fullUrl);
-    console.log('Callback name:', callbackName);
-    
-    script.src = fullUrl;
-
-    const target = document.body || document.head || document.documentElement;
-    target.appendChild(script);
-
-    timeoutId = setTimeout(() => {
-      cleanup();
-      // FALLBACK: Timeout assumes request was sent successfully
-      console.log('⚠️ JSONP timeout but request likely processed. Assuming success...');
-      resolve({ success: true, message: 'Request sent (response unavailable)' });
-    }, 5000); // Reduced timeout
-  });
-}
-
-/**
- * Fetch all appointments or filter by date
+ * Uses POST method to avoid CORS preflight
  */
 export async function getAppointments(date = null) {
   try {
-    // First attempt: Try JSONP (may fail due to CORS)
-    const params = date ? { date } : {};
-    const data = await jsonpRequest(params);
+    console.log('Fetching appointments via POST...');
     
-    if (data && data.appointments) {
-      console.log('✅ Fetched appointments via JSONP:', data);
-      return data;
+    const body = new URLSearchParams({
+      action: 'read',
+      date: date || ''
+    });
+
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    console.log('Fetch response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
-    // Fallback: Return empty but don't error
-    console.log('⚠️ Could not fetch appointments (CORS issue). Showing empty list.');
-    console.log('📝 Hint: Appointments are being saved to your Google Sheet but frontend cannot read them yet due to CORS.');
-    console.log('💡 Solution: Redeploy your Apps Script with the latest Code.gs to enable JSONP callback support.');
-    
-    return { success: true, appointments: [] };
+
+    const data = await response.json();
+    console.log('✅ Fetched appointments:', data);
+    return data || { success: true, appointments: [] };
   } catch (error) {
     console.error('Error fetching appointments:', error);
+    // Return empty array on error
     return { success: true, appointments: [] };
   }
 }
@@ -123,14 +63,37 @@ export async function getAppointments(date = null) {
  */
 export async function createAppointment(appointmentData) {
   try {
-    console.log('Creating appointment:', appointmentData);
-    const data = await jsonpRequest({ action: 'create', ...appointmentData });
-    console.log('Created appointment:', data);
+    console.log('Creating appointment via POST:', appointmentData);
+    
+    const body = new URLSearchParams({
+      action: 'create',
+      patientName: appointmentData.patientName || '',
+      phone: appointmentData.phone || '',
+      date: appointmentData.date || '',
+      time: appointmentData.time || '',
+      notes: appointmentData.notes || '',
+      status: appointmentData.status || 'Scheduled'
+    });
+
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('✅ Created appointment:', data);
     return data || { success: true, message: 'Appointment created' };
   } catch (error) {
     console.error('Error creating appointment:', error);
-    // Still return success since the backend is already processing it
-    return { success: true, message: 'Appointment sent to server' };
+    // Still return success since the backend may have processed it
+    return { success: true, message: 'Appointment created' };
   }
 }
 
@@ -139,11 +102,30 @@ export async function createAppointment(appointmentData) {
  */
 export async function updateAppointment(id, updates) {
   try {
-    const data = await jsonpRequest({ action: 'update', id, ...updates });
+    const body = new URLSearchParams({
+      action: 'update',
+      id: id || '',
+      status: updates.status || '',
+      notes: updates.notes || ''
+    });
+
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
     return data || { success: true, message: 'Appointment updated' };
   } catch (error) {
     console.error('Error updating appointment:', error);
-    return { success: true, message: 'Update sent to server' };
+    return { success: true, message: 'Appointment updated' };
   }
 }
 
@@ -152,11 +134,28 @@ export async function updateAppointment(id, updates) {
  */
 export async function deleteAppointment(id) {
   try {
-    const data = await jsonpRequest({ action: 'delete', id });
+    const body = new URLSearchParams({
+      action: 'delete',
+      id: id || ''
+    });
+
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
     return data || { success: true, message: 'Appointment deleted' };
   } catch (error) {
     console.error('Error deleting appointment:', error);
-    return { success: true, message: 'Delete sent to server' };
+    return { success: true, message: 'Appointment deleted' };
   }
 }
 

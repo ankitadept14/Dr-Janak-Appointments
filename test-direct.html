@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct GET Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .log { background: #252526; padding: 10px; margin: 10px 0; border-left: 3px solid #007acc; }
+        .error { border-color: #f48771; }
+        .success { border-color: #89d185; }
+        button { padding: 10px 20px; font-size: 14px; cursor: pointer; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Direct GET Test (No JSONP)</h1>
+    <p>Testing if we can at least see what the raw response is...</p>
+    
+    <div>
+        <button onclick="testRawFetch()">Test: Fetch Raw Response</button>
+        <button onclick="testWithHeaders()">Test: Fetch with No-CORS</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <div id="logs"></div>
+
+    <script>
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbytQnaTF9Ml70w7cgigKxxB-0R9HbbHUmgVK6-w91TD-ctzyH-POsgPp5fVUT_rmyfD/exec';
+        
+        function log(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            document.getElementById('logs').prepend(div);
+            console.log(message);
+        }
+
+        function testRawFetch() {
+            log('Testing raw fetch (will show actual response or error)...');
+            
+            fetch(GAS_URL, {
+                method: 'GET',
+                mode: 'no-cors'
+            })
+            .then(response => {
+                log(`Response status: ${response.status}`, 'success');
+                log(`Response type: ${response.type}`, 'success');
+                
+                // With no-cors, we can't read the body, but let's try
+                if (response.type === 'opaque') {
+                    log('⚠️ Response is opaque (CORS blocked) - cannot read body', 'error');
+                    log('But the request DID reach the server!', 'success');
+                    return;
+                }
+                
+                return response.text();
+            })
+            .then(text => {
+                if (text) {
+                    log(`Response text: ${text.substring(0, 300)}...`, 'success');
+                }
+            })
+            .catch(error => {
+                log(`❌ ${error.message}`, 'error');
+            });
+        }
+
+        function testWithHeaders() {
+            log('Testing with custom headers...');
+            
+            fetch(GAS_URL, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+            })
+            .then(response => {
+                log(`Status: ${response.status}`, 'success');
+                return response.json();
+            })
+            .then(data => {
+                log(`✅ Got JSON response: ${JSON.stringify(data, null, 2)}`, 'success');
+            })
+            .catch(error => {
+                log(`Error: ${error.message}`, 'error');
+            });
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
