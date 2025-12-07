@@ -8,7 +8,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Dr. Janak Appointments',
         short_name: 'Dr. Janak',
@@ -21,21 +20,16 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'icon-192.png',
+            src: '/vite.svg',
             sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
-          },
-          {
-            src: 'icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
+            type: 'image/svg+xml',
             purpose: 'any maskable'
           }
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,svg}'],
+        globIgnores: ['**/node_modules/**/*', '**/sw.js', '**/workbox-*.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/script\.google\.com\/.*/i,
@@ -44,7 +38,7 @@ export default defineConfig({
               cacheName: 'google-apps-script-cache',
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                maxAgeSeconds: 60 * 60 * 24
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -55,5 +49,5 @@ export default defineConfig({
       }
     })
   ],
-  base: '/Dr_Janak_Appointment_App/'
+  base: '/Dr-Janak-Appointments/'
 })
