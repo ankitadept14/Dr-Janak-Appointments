@@ -204,7 +204,7 @@ function deleteAppointment(data, e) {
  * Create response with JSONP support (bypasses CORS)
  */
 function createResponse(data, e) {
-  const callback = e.parameter.callback;
+  const callback = e && e.parameter ? e.parameter.callback : null;
   let output;
   
   if (callback) {
@@ -215,10 +215,13 @@ function createResponse(data, e) {
     // Regular JSON response with CORS headers
     output = ContentService.createTextOutput(JSON.stringify(data));
     output.setMimeType(ContentService.MimeType.JSON);
-    output.setHeader('Access-Control-Allow-Origin', '*');
-    output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    output.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   }
+  
+  // Always set CORS headers for POST/PUT/DELETE
+  output.setHeader('Access-Control-Allow-Origin', '*');
+  output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+  output.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  output.setHeader('Access-Control-Max-Age', '86400');
   
   return output;
 }
