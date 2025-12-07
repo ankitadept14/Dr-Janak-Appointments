@@ -91,7 +91,6 @@ function doPost(e) {
     
     // Also support action=read to fetch appointments via POST
     if (action === 'read' || action === 'get') {
-      const filterDate = data.date || null;
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       
       // Get all sheet names for debugging
@@ -112,6 +111,7 @@ function doPost(e) {
       const headers = sheetData[0];
       const rows = sheetData.slice(1);
       
+      // Convert all rows to objects
       const appointments = rows.map((row, idx) => {
         const obj = {};
         headers.forEach((header, index) => {
@@ -120,13 +120,10 @@ function doPost(e) {
         return obj;
       }).filter(apt => apt.id && apt.id !== '');
       
-      const filtered = filterDate 
-        ? appointments.filter(apt => apt.date === filterDate)
-        : appointments;
-        
+      // Return all appointments - frontend will handle date filtering
       return createResponse({ 
         success: true, 
-        appointments: filtered, 
+        appointments: appointments,
         debug: { 
           totalRows: rows.length, 
           appointmentsFound: appointments.length,

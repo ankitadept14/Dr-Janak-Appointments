@@ -41,10 +41,19 @@ export async function getAppointments(date = null) {
 
     const data = await response.json();
     console.log('✅ Fetched all appointments:', data);
+    console.log('First appointment date type:', typeof data.appointments?.[0]?.date, 'value:', data.appointments?.[0]?.date);
     
     // Filter on frontend if date is provided
     if (date && data.appointments) {
-      const filtered = data.appointments.filter(apt => apt.date === date);
+      console.log('Filtering with date param:', date, 'type:', typeof date);
+      const filtered = data.appointments.filter(apt => {
+        const aptDateStr = apt.date ? String(apt.date) : '';
+        const matches = aptDateStr === date;
+        if (!matches) {
+          console.log('No match: apt.date=', aptDateStr, 'vs date=', date);
+        }
+        return matches;
+      });
       console.log('Filtered to date', date, ':', filtered.length, 'appointments');
       return { ...data, appointments: filtered };
     }
