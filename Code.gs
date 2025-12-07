@@ -77,9 +77,6 @@ function doGet(e) {
 function doOptions(e) {
   const output = ContentService.createTextOutput('');
   output.setMimeType(ContentService.MimeType.JSON);
-  output.setHeader('Access-Control-Allow-Origin', '*');
-  output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   return output;
 }
 
@@ -96,29 +93,49 @@ function doPost(e) {
     if (action === 'read' || action === 'get') {
       const filterDate = data.date || null;
       const ss = SpreadsheetApp.getActiveSpreadsheet();
+      
+      // Get all sheet names for debugging
+      const allSheets = ss.getSheets().map(s => s.getName());
+      
       const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
       
       if (!sheet) {
-        return createResponse({ error: 'Appointments sheet not found' }, e);
+        return createResponse({ 
+          error: 'Appointments sheet not found', 
+          sheetName: APPOINTMENTS_SHEET, 
+          availableSheets: allSheets,
+          spreadsheetId: ss.getId()
+        }, e);
       }
       
       const sheetData = sheet.getDataRange().getValues();
       const headers = sheetData[0];
       const rows = sheetData.slice(1);
       
-      const appointments = rows.map(row => {
+      const appointments = rows.map((row, idx) => {
         const obj = {};
         headers.forEach((header, index) => {
           obj[header] = row[index];
         });
         return obj;
-      }).filter(apt => apt.id);
+      }).filter(apt => apt.id && apt.id !== '');
       
       const filtered = filterDate 
         ? appointments.filter(apt => apt.date === filterDate)
         : appointments;
         
-      return createResponse({ success: true, appointments: filtered }, e);
+      return createResponse({ 
+        success: true, 
+        appointments: filtered, 
+        debug: { 
+          totalRows: rows.length, 
+          appointmentsFound: appointments.length,
+          sheetName: APPOINTMENTS_SHEET,
+          availableSheets: allSheets,
+          headers: headers,
+          firstFewRows: rows.slice(0, 3)
+        } 
+      }, e);
     }
     
     switch (action) {
@@ -272,7 +289,7 @@ function deleteAppointment(data, e) {
 }
 
 /**
- * Create response with JSONP support (bypasses CORS)
+ * Create response with CORS support
  */
 function createResponse(data, e) {
   const callback = e && e.parameter ? e.parameter.callback : null;
@@ -283,16 +300,14 @@ function createResponse(data, e) {
     output = ContentService.createTextOutput(callback + '(' + JSON.stringify(data) + ')');
     output.setMimeType(ContentService.MimeType.JAVASCRIPT);
   } else {
-    // Regular JSON response with CORS headers
+    // Regular JSON response
     output = ContentService.createTextOutput(JSON.stringify(data));
     output.setMimeType(ContentService.MimeType.JSON);
   }
   
-  // Always set CORS headers for POST/PUT/DELETE
-  output.setHeader('Access-Control-Allow-Origin', '*');
-  output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-  output.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  output.setHeader('Access-Control-Max-Age', '86400');
+  // Note: Google Apps Script's ContentService doesn't support CORS headers via setHeader()
+  // The CORS handling must be done at the Apps Script deployment level
+  // For now, just return the response as-is
   
   return output;
 }

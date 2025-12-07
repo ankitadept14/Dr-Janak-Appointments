@@ -20,11 +20,11 @@ if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
  */
 export async function getAppointments(date = null) {
   try {
-    console.log('Fetching appointments via proxy...');
+    console.log('Fetching appointments via proxy for date:', date);
     
     const body = new URLSearchParams({
-      action: 'read',
-      date: date || ''
+      action: 'read'
+      // Don't send date to backend - let frontend filter
     });
 
     const response = await fetch(API_URL, {
@@ -40,7 +40,15 @@ export async function getAppointments(date = null) {
     }
 
     const data = await response.json();
-    console.log('✅ Fetched appointments:', data);
+    console.log('✅ Fetched all appointments:', data);
+    
+    // Filter on frontend if date is provided
+    if (date && data.appointments) {
+      const filtered = data.appointments.filter(apt => apt.date === date);
+      console.log('Filtered to date', date, ':', filtered.length, 'appointments');
+      return { ...data, appointments: filtered };
+    }
+    
     return data || { success: true, appointments: [] };
   } catch (error) {
     console.error('Error fetching appointments:', error);
