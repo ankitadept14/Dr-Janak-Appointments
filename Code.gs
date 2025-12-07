@@ -47,13 +47,7 @@ function doGet(e) {
  * Handle OPTIONS requests for CORS preflight
  */
 function doOptions(e) {
-  const output = ContentService.createTextOutput('');
-  output.setMimeType(ContentService.MimeType.TEXT);
-  output.setHeader('Access-Control-Allow-Origin', '*');
-  output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  output.setHeader('Access-Control-Max-Age', '86400');
-  return output;
+  return createCORSResponse({});
 }
 
 /**

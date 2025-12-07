@@ -7,10 +7,6 @@
 // STORE THIS IN .env file, not in code!
 const GAS_URL = import.meta.env.VITE_GAS_API_URL || 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
 
-// CORS proxy - use a reliable service
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-const API_URL = CORS_PROXY + encodeURIComponent(GAS_URL);
-
 // Check if API_URL is configured
 console.log('GAS_URL:', GAS_URL);
 console.log('import.meta.env.VITE_GAS_API_URL:', import.meta.env.VITE_GAS_API_URL);
@@ -23,14 +19,7 @@ if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
  */
 export async function getAppointments(date = null) {
   try {
-    // Build the GAS URL with date parameter if needed
-    let gasUrl = GAS_URL;
-    if (date) {
-      gasUrl += `?date=${date}`;
-    }
-    
-    // Use CORS proxy
-    const url = CORS_PROXY + encodeURIComponent(gasUrl);
+    const url = date ? `${GAS_URL}?date=${date}` : GAS_URL;
     console.log('Fetching appointments from:', url);
     
     const response = await fetch(url, {
@@ -66,8 +55,7 @@ export async function createAppointment(appointmentData) {
   try {
     console.log('Creating appointment:', appointmentData);
     
-    const url = CORS_PROXY + encodeURIComponent(GAS_URL);
-    const response = await fetch(url, {
+    const response = await fetch(GAS_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,8 +90,7 @@ export async function createAppointment(appointmentData) {
  */
 export async function updateAppointment(id, updates) {
   try {
-    const url = CORS_PROXY + encodeURIComponent(GAS_URL);
-    const response = await fetch(url, {
+    const response = await fetch(GAS_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -134,8 +121,7 @@ export async function updateAppointment(id, updates) {
  */
 export async function deleteAppointment(id) {
   try {
-    const url = CORS_PROXY + encodeURIComponent(GAS_URL);
-    const response = await fetch(url, {
+    const response = await fetch(GAS_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
