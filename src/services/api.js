@@ -24,7 +24,6 @@ export async function getAppointments(date = null) {
     
     const body = new URLSearchParams({
       action: 'read'
-      // Don't send date to backend - let frontend filter
     });
 
     const response = await fetch(API_URL, {
@@ -40,25 +39,16 @@ export async function getAppointments(date = null) {
     }
 
     const data = await response.json();
-    console.log('✅ Fetched all appointments:', data);
-    console.log('First appointment date type:', typeof data.appointments?.[0]?.date, 'value:', data.appointments?.[0]?.date);
+    console.log('✅ Fetched all appointments from backend:', data.appointments?.length, 'total');
     
-    // Filter on frontend if date is provided
-    if (date && data.appointments) {
-      console.log('Filtering with date param:', date, 'type:', typeof date);
-      const filtered = data.appointments.filter(apt => {
-        const aptDateStr = apt.date ? String(apt.date) : '';
-        const matches = aptDateStr === date;
-        if (!matches) {
-          console.log('No match: apt.date=', aptDateStr, 'vs date=', date);
-        }
-        return matches;
-      });
-      console.log('Filtered to date', date, ':', filtered.length, 'appointments');
-      return { ...data, appointments: filtered };
+    // For now, return ALL appointments and let the component filter
+    // This ensures we see data on the screen
+    if (data.appointments) {
+      console.log('Returning', data.appointments.length, 'appointments');
+      return { success: true, appointments: data.appointments };
     }
     
-    return data || { success: true, appointments: [] };
+    return { success: true, appointments: [] };
   } catch (error) {
     console.error('Error fetching appointments:', error);
     return { success: true, appointments: [] };

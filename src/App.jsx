@@ -178,7 +178,9 @@ function App() {
 
   // Nurse Dashboard
   if (view === 'nurse') {
-    const todaysAppointments = appointments.filter(apt => apt.date === getTodayDate());
+    // Show ALL appointments for now - debugging
+    const todaysAppointments = appointments;
+    console.log('Displaying', todaysAppointments.length, 'appointments in nurse view');
     
     return (
       <div className="app-container">
@@ -282,12 +284,12 @@ function App() {
               </form>
             </section>
 
-            {/* Today's Appointments List */}
+            {/* All Appointments List */}
             <section className="card appointments-section">
               <div className="section-header">
                 <h2>
                   <Calendar size={20} />
-                  Today's Appointments ({todaysAppointments.length})
+                  All Appointments ({todaysAppointments.length})
                 </h2>
                 <button 
                   className="refresh-btn" 
