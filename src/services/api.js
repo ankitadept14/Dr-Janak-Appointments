@@ -57,17 +57,19 @@ export async function getAppointments(date = null) {
 export async function createAppointment(appointmentData) {
   try {
     console.log('Creating appointment:', appointmentData);
-    const params = new URLSearchParams({
+    const body = new URLSearchParams({
       action: 'create',
       ...appointmentData,
     });
 
-    const url = `${GAS_URL}?${params.toString()}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+      },
       mode: 'cors',
       credentials: 'omit',
+      body: body.toString(),
     });
     
     console.log('Create response status:', response.status);
@@ -92,18 +94,20 @@ export async function createAppointment(appointmentData) {
  */
 export async function updateAppointment(id, updates) {
   try {
-    const params = new URLSearchParams({
+    const body = new URLSearchParams({
       action: 'update',
       id,
       ...updates,
     });
 
-    const url = `${GAS_URL}?${params.toString()}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+      },
       mode: 'cors',
       credentials: 'omit',
+      body: body.toString(),
     });
     
     if (!response.ok) {
@@ -123,17 +127,19 @@ export async function updateAppointment(id, updates) {
  */
 export async function deleteAppointment(id) {
   try {
-    const params = new URLSearchParams({
+    const body = new URLSearchParams({
       action: 'delete',
       id,
     });
 
-    const url = `${GAS_URL}?${params.toString()}`;
-
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+      },
       mode: 'cors',
       credentials: 'omit',
+      body: body.toString(),
     });
     
     if (!response.ok) {

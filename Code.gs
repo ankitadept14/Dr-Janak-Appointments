@@ -88,8 +88,9 @@ function doOptions(e) {
  */
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action || 'create';
+    // Prefer form parameters to avoid JSON parsing errors
+    const data = e && e.parameter ? e.parameter : {};
+    const action = (data.action || 'create').toLowerCase();
     
     switch (action) {
       case 'create':
@@ -102,6 +103,19 @@ function doPost(e) {
         return createResponse({ error: 'Invalid action' }, e);
     }
   } catch (error) {
+    // Fallback to JSON parse if parameter parsing fails
+    try {
+      const parsed = JSON.parse(e.postData.contents);
+      const action2 = (parsed.action || 'create').toLowerCase();
+      switch (action2) {
+        case 'create':
+          return createAppointment(parsed, e);
+        case 'update':
+          return updateAppointment(parsed, e);
+        case 'delete':
+          return deleteAppointment(parsed, e);
+      }
+    } catch (err) {}
     return createResponse({ error: error.toString() }, e);
   }
 }
