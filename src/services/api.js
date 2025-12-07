@@ -86,6 +86,8 @@ export async function createAppointment(appointmentData) {
     console.error('Error creating appointment:', error);
     throw error;
   }
+}
+
 /**
  * Update an appointment (e.g., mark as checked in)
  */
