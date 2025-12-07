@@ -55,7 +55,6 @@ function doOptions(e) {
   output.setHeader('Access-Control-Max-Age', '86400');
   return output;
 }
-}
 
 /**
  * Handle POST requests - Create, Update, or Delete appointments
