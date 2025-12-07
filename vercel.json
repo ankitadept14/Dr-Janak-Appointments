@@ -1,9 +1,6 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "env": {
-    "VITE_GAS_API_URL": "@gas_api_url"
-  },
   "functions": {
     "api/**/*.js": {
       "runtime": "nodejs18.x"
