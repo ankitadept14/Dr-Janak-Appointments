@@ -14,7 +14,7 @@ function doGet(e) {
     const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
     
     if (!sheet) {
-      return createCORSResponse({ error: 'Appointments sheet not found' });
+      return createResponse({ error: 'Appointments sheet not found' }, e);
     }
     
     const data = sheet.getDataRange().getValues();
@@ -34,12 +34,12 @@ function doGet(e) {
     const filterDate = e.parameter.date;
     if (filterDate) {
       const filtered = appointments.filter(apt => apt.date === filterDate);
-      return createCORSResponse({ success: true, appointments: filtered });
+      return createResponse({ success: true, appointments: filtered }, e);
     }
     
-    return createCORSResponse({ success: true, appointments });
+    return createResponse({ success: true, appointments }, e);
   } catch (error) {
-    return createCORSResponse({ error: error.toString() });
+    return createResponse({ error: error.toString() }, e);
   }
 }
 
@@ -47,7 +47,12 @@ function doGet(e) {
  * Handle OPTIONS requests for CORS preflight
  */
 function doOptions(e) {
-  return createCORSResponse({});
+  const output = ContentService.createTextOutput('');
+  output.setMimeType(ContentService.MimeType.JSON);
+  output.setHeader('Access-Control-Allow-Origin', '*');
+  output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  output.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  return output;
 }
 
 /**
@@ -60,28 +65,28 @@ function doPost(e) {
     
     switch (action) {
       case 'create':
-        return createAppointment(data);
+        return createAppointment(data, e);
       case 'update':
-        return updateAppointment(data);
+        return updateAppointment(data, e);
       case 'delete':
-        return deleteAppointment(data);
+        return deleteAppointment(data, e);
       default:
-        return createCORSResponse({ error: 'Invalid action' });
+        return createResponse({ error: 'Invalid action' }, e);
     }
   } catch (error) {
-    return createCORSResponse({ error: error.toString() });
+    return createResponse({ error: error.toString() }, e);
   }
 }
 
 /**
  * Create a new appointment
  */
-function createAppointment(data) {
+function createAppointment(data, e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
   
   if (!sheet) {
-    return createCORSResponse({ error: 'Appointments sheet not found' });
+    return createResponse({ error: 'Appointments sheet not found' }, e);
   }
   
   // Check if phone number exists to determine type
@@ -112,7 +117,7 @@ function createAppointment(data) {
   
   sheet.appendRow(newRow);
   
-  return createCORSResponse({
+  return createResponse({
     success: true,
     appointment: {
       id: newId,
@@ -125,18 +130,18 @@ function createAppointment(data) {
       status: data.status || 'Scheduled',
       notes: data.notes || ''
     }
-  });
+  }, e);
 }
 
 /**
  * Update an existing appointment
  */
-function updateAppointment(data) {
+function updateAppointment(data, e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
   
   if (!sheet) {
-    return createCORSResponse({ error: 'Appointments sheet not found' });
+    return createResponse({ error: 'Appointments sheet not found' }, e);
   }
   
   const allData = sheet.getDataRange().getValues();
@@ -149,7 +154,7 @@ function updateAppointment(data) {
   );
   
   if (rowIndex === -1) {
-    return createCORSResponse({ error: 'Appointment not found' });
+    return createResponse({ error: 'Appointment not found' }, e);
   }
   
   // Update status (or other fields as needed)
@@ -163,18 +168,18 @@ function updateAppointment(data) {
     sheet.getRange(rowIndex + 1, notesColumn + 1).setValue(data.notes);
   }
   
-  return createCORSResponse({ success: true, message: 'Appointment updated' });
+  return createResponse({ success: true, message: 'Appointment updated' }, e);
 }
 
 /**
  * Delete an appointment
  */
-function deleteAppointment(data) {
+function deleteAppointment(data, e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(APPOINTMENTS_SHEET);
   
   if (!sheet) {
-    return createCORSResponse({ error: 'Appointments sheet not found' });
+    return createResponse({ error: 'Appointments sheet not found' }, e);
   }
   
   const allData = sheet.getDataRange().getValues();
@@ -187,27 +192,33 @@ function deleteAppointment(data) {
   );
   
   if (rowIndex === -1) {
-    return createCORSResponse({ error: 'Appointment not found' });
+    return createResponse({ error: 'Appointment not found' }, e);
   }
   
   sheet.deleteRow(rowIndex + 1);
   
-  return createCORSResponse({ success: true, message: 'Appointment deleted' });
+  return createResponse({ success: true, message: 'Appointment deleted' }, e);
 }
 
 /**
- * Create JSON response with proper CORS headers
- * This wraps the response to ensure CORS headers are set correctly
+ * Create response with JSONP support (bypasses CORS)
  */
-function createCORSResponse(data) {
-  const output = ContentService.createTextOutput(JSON.stringify(data));
-  output.setMimeType(ContentService.MimeType.JSON);
+function createResponse(data, e) {
+  const callback = e.parameter.callback;
+  let output;
   
-  // CORS headers - Allow requests from any origin
-  output.setHeader('Access-Control-Allow-Origin', '*');
-  output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  output.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  output.setHeader('Access-Control-Max-Age', '86400');
+  if (callback) {
+    // JSONP response - wraps JSON in callback function
+    output = ContentService.createTextOutput(callback + '(' + JSON.stringify(data) + ')');
+    output.setMimeType(ContentService.MimeType.JAVASCRIPT);
+  } else {
+    // Regular JSON response with CORS headers
+    output = ContentService.createTextOutput(JSON.stringify(data));
+    output.setMimeType(ContentService.MimeType.JSON);
+    output.setHeader('Access-Control-Allow-Origin', '*');
+    output.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    output.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
   
   return output;
 }
