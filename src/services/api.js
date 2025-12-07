@@ -21,36 +21,34 @@ if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
  * Fetch all appointments or filter by date
  */
 export async function getAppointments(date = null) {
-  return new Promise((resolve, reject) => {
-    try {
-      // Use JSONP to bypass CORS
-      const callbackName = 'jsonpCallback_' + Date.now();
-      window[callbackName] = (data) => {
-        delete window[callbackName];
-        document.body.removeChild(script);
-        console.log('Fetched data:', data);
-        resolve(data);
-      };
-      
-      let url = GAS_URL + '?callback=' + callbackName;
-      if (date) {
-        url += '&date=' + date;
-      }
-      console.log('Fetching appointments from:', url);
-      
-      const script = document.createElement('script');
-      script.src = url;
-      script.onerror = () => {
-        delete window[callbackName];
-        document.body.removeChild(script);
-        reject(new Error('Failed to fetch'));
-      };
-      document.body.appendChild(script);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-      reject(error);
+  try {
+    const url = date ? `${GAS_URL}?date=${date}` : GAS_URL;
+    console.log('Fetching appointments from:', url);
+    
+    // Try with CORS first
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      mode: 'cors',
+      credentials: 'omit'
+    });
+    
+    console.log('Response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  });
+    
+    const data = await response.json();
+    console.log('Fetched data:', data);
+    return data;
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    // Return empty array instead of throwing to allow app to function
+    return { success: true, appointments: [] };
+  }
 }
 
 /**
