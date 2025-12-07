@@ -1,8 +1,10 @@
-import fetch from 'node-fetch';
-
-const GAS_URL = process.env.VITE_GAS_API_URL || '';
-
 export default async function handler(req, res) {
+  const GAS_URL = process.env.VITE_GAS_API_URL;
+
+  if (!GAS_URL) {
+    return res.status(500).json({ error: 'VITE_GAS_API_URL environment variable not set' });
+  }
+
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,11 +18,11 @@ export default async function handler(req, res) {
 
   try {
     // Forward the request to Google Apps Script
-    const body = new URLSearchParams(req.body);
+    const body = new URLSearchParams(req.body).toString();
     
     const response = await fetch(GAS_URL, {
       method: 'POST',
-      body: body.toString(),
+      body: body,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       }
