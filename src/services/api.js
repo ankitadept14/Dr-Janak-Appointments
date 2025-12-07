@@ -14,6 +14,13 @@ if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
   console.error('ERROR: API_URL not configured! Add VITE_GAS_API_URL to .env file');
 }
 
+// Test direct connectivity (will fail with CORS but tells us if URL is reachable)
+if (GAS_URL && !GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
+  fetch(GAS_URL)
+    .then(() => console.log('✅ Apps Script URL is reachable'))
+    .catch(err => console.warn('⚠️ Apps Script connectivity issue:', err.message));
+}
+
 /**
  * Fetch all appointments or filter by date
  */
@@ -44,12 +51,16 @@ function jsonpRequest(params) {
 
     window[callbackName] = (data) => {
       cleanup();
+      console.log('✅ JSONP callback received:', data);
       resolve(data);
     };
 
-    script.onerror = () => {
+    script.onerror = (error) => {
       cleanup();
-      reject(new Error('Network error'));
+      console.error('❌ JSONP script load error:', error);
+      console.error('Failed URL:', script.src);
+      console.error('Make sure Apps Script is deployed with the latest Code.gs changes!');
+      reject(new Error('Network error - Apps Script may need to be redeployed with JSONP support'));
     };
 
     const filteredParams = Object.entries(params).reduce((acc, [key, value]) => {
@@ -60,7 +71,12 @@ function jsonpRequest(params) {
     }, {});
 
     const searchParams = new URLSearchParams({ ...filteredParams, callback: callbackName });
-    script.src = `${GAS_URL}?${searchParams.toString()}`;
+    const fullUrl = `${GAS_URL}?${searchParams.toString()}`;
+    
+    console.log('JSONP request URL:', fullUrl);
+    console.log('Callback name:', callbackName);
+    
+    script.src = fullUrl;
 
     const target = document.body || document.head || document.documentElement;
     target.appendChild(script);
