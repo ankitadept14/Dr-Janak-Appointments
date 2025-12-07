@@ -57,19 +57,17 @@ export async function getAppointments(date = null) {
 export async function createAppointment(appointmentData) {
   try {
     console.log('Creating appointment:', appointmentData);
-    
-    const response = await fetch(GAS_URL, {
-      method: 'POST',
-      // Use text/plain to avoid CORS preflight
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
+    const params = new URLSearchParams({
+      action: 'create',
+      ...appointmentData,
+    });
+
+    const url = `${GAS_URL}?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
       mode: 'cors',
       credentials: 'omit',
-      body: JSON.stringify({
-        action: 'create',
-        ...appointmentData
-      }),
     });
     
     console.log('Create response status:', response.status);
@@ -94,18 +92,18 @@ export async function createAppointment(appointmentData) {
  */
 export async function updateAppointment(id, updates) {
   try {
-    const response = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
+    const params = new URLSearchParams({
+      action: 'update',
+      id,
+      ...updates,
+    });
+
+    const url = `${GAS_URL}?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
       mode: 'cors',
       credentials: 'omit',
-      body: JSON.stringify({
-        action: 'update',
-        id,
-        ...updates
-      }),
     });
     
     if (!response.ok) {
@@ -125,17 +123,17 @@ export async function updateAppointment(id, updates) {
  */
 export async function deleteAppointment(id) {
   try {
-    const response = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
+    const params = new URLSearchParams({
+      action: 'delete',
+      id,
+    });
+
+    const url = `${GAS_URL}?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
       mode: 'cors',
       credentials: 'omit',
-      body: JSON.stringify({
-        action: 'delete',
-        id
-      }),
     });
     
     if (!response.ok) {

@@ -16,6 +16,34 @@ function doGet(e) {
     if (!sheet) {
       return createResponse({ error: 'Appointments sheet not found' }, e);
     }
+
+    // Support action routing via GET to avoid CORS preflight (create/update/delete)
+    const action = (e.parameter.action || '').toLowerCase();
+    if (action === 'create') {
+      const data = {
+        patientName: e.parameter.patientName || '',
+        phone: e.parameter.phone || '',
+        date: e.parameter.date || '',
+        time: e.parameter.time || '',
+        status: e.parameter.status || 'Scheduled',
+        notes: e.parameter.notes || ''
+      };
+      return createAppointment(data, e);
+    }
+    if (action === 'update') {
+      const data = {
+        id: e.parameter.id || '',
+        status: e.parameter.status,
+        notes: e.parameter.notes
+      };
+      return updateAppointment(data, e);
+    }
+    if (action === 'delete') {
+      const data = {
+        id: e.parameter.id || ''
+      };
+      return deleteAppointment(data, e);
+    }
     
     const data = sheet.getDataRange().getValues();
     const headers = data[0];
