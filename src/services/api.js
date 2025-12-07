@@ -7,10 +7,10 @@
 // STORE THIS IN .env file, not in code!
 const GAS_URL = import.meta.env.VITE_GAS_API_URL || 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
 
-// CORS proxy for localhost development
-const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const CORS_PROXY = isDevelopment ? 'https://cors-anywhere.herokuapp.com/' : '';
-const API_URL = isDevelopment ? CORS_PROXY + GAS_URL : GAS_URL;
+// CORS proxy - needed for both localhost and GitHub Pages
+// Google Apps Script doesn't support CORS from browser origins
+const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
+const API_URL = CORS_PROXY + GAS_URL;
 
 // Check if API_URL is configured
 console.log('GAS_URL:', GAS_URL);
