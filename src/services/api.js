@@ -1,40 +1,33 @@
 // API Service for Google Apps Script communication
 
-// ⚠️ IMPORTANT: DO NOT COMMIT THIS FILE WITH THE REAL URL!
-// Store the actual URL in environment variables instead
-
 // Your Google Apps Script Web App URL
-// STORE THIS IN .env file, not in code!
 const GAS_URL = import.meta.env.VITE_GAS_API_URL || 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+
+// Use Vercel proxy in production, direct GAS_URL in development
+const API_URL = import.meta.env.PROD ? '/api/proxy' : GAS_URL;
 
 // Check if API_URL is configured
 console.log('GAS_URL:', GAS_URL);
-console.log('import.meta.env.VITE_GAS_API_URL:', import.meta.env.VITE_GAS_API_URL);
+console.log('API_URL:', API_URL);
+console.log('ENV (PROD):', import.meta.env.PROD);
 if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
   console.error('ERROR: API_URL not configured! Add VITE_GAS_API_URL to .env file');
 }
 
-// Test direct connectivity (will fail with CORS but tells us if URL is reachable)
-if (GAS_URL && !GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
-  fetch(GAS_URL)
-    .then(() => console.log('✅ Apps Script URL is reachable'))
-    .catch(err => console.warn('⚠️ Apps Script connectivity issue:', err.message));
-}
-
 /**
  * Fetch all appointments or filter by date
- * Uses POST method to avoid CORS preflight
+ * Uses proxy in production to avoid CORS issues
  */
 export async function getAppointments(date = null) {
   try {
-    console.log('Fetching appointments via POST...');
+    console.log('Fetching appointments via proxy...');
     
     const body = new URLSearchParams({
       action: 'read',
       date: date || ''
     });
 
-    const response = await fetch(GAS_URL, {
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -42,8 +35,6 @@ export async function getAppointments(date = null) {
       body: body.toString()
     });
 
-    console.log('Fetch response status:', response.status);
-    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -53,7 +44,6 @@ export async function getAppointments(date = null) {
     return data || { success: true, appointments: [] };
   } catch (error) {
     console.error('Error fetching appointments:', error);
-    // Return empty array on error
     return { success: true, appointments: [] };
   }
 }
@@ -63,7 +53,7 @@ export async function getAppointments(date = null) {
  */
 export async function createAppointment(appointmentData) {
   try {
-    console.log('Creating appointment via POST:', appointmentData);
+    console.log('Creating appointment:', appointmentData);
     
     const body = new URLSearchParams({
       action: 'create',
@@ -75,7 +65,7 @@ export async function createAppointment(appointmentData) {
       status: appointmentData.status || 'Scheduled'
     });
 
-    const response = await fetch(GAS_URL, {
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -92,7 +82,6 @@ export async function createAppointment(appointmentData) {
     return data || { success: true, message: 'Appointment created' };
   } catch (error) {
     console.error('Error creating appointment:', error);
-    // Still return success since the backend may have processed it
     return { success: true, message: 'Appointment created' };
   }
 }
@@ -109,7 +98,7 @@ export async function updateAppointment(id, updates) {
       notes: updates.notes || ''
     });
 
-    const response = await fetch(GAS_URL, {
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -139,7 +128,7 @@ export async function deleteAppointment(id) {
       id: id || ''
     });
 
-    const response = await fetch(GAS_URL, {
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
