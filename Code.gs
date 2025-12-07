@@ -352,4 +352,3 @@ function initializeSpreadsheet() {
   
   Logger.log('Spreadsheet initialized successfully');
 }
-}
