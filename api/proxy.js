@@ -17,9 +17,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Forward the request to Google Apps Script
-    const body = new URLSearchParams(req.body).toString();
+    // Build the request body
+    let body;
     
+    if (typeof req.body === 'string') {
+      body = req.body;
+    } else if (typeof req.body === 'object') {
+      body = new URLSearchParams(req.body).toString();
+    } else {
+      body = '';
+    }
+
+    console.log('Proxy request body:', body);
+    console.log('Forwarding to GAS_URL:', GAS_URL);
+
     const response = await fetch(GAS_URL, {
       method: 'POST',
       body: body,
@@ -29,18 +40,29 @@ export default async function handler(req, res) {
     });
 
     const data = await response.text();
-    
-    // Try to parse as JSON, fallback to text
+    console.log('GAS response status:', response.status);
+    console.log('GAS response preview:', data.substring(0, 200));
+
+    // Try to parse as JSON
     let responseData;
     try {
       responseData = JSON.parse(data);
-    } catch {
+    } catch (parseError) {
+      console.error('Failed to parse GAS response as JSON:', parseError);
+      // If it's HTML, it's likely an error page from Apps Script
+      if (data.includes('<!DOCTYPE') || data.includes('<html')) {
+        return res.status(500).json({ 
+          error: 'Apps Script returned HTML (likely an error). Check if deployment is correct.',
+          rawResponse: data.substring(0, 500)
+        });
+      }
+      // Otherwise treat as success with raw data
       responseData = { success: true, data: data };
     }
 
     res.status(200).json(responseData);
   } catch (error) {
     console.error('Proxy error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message, stack: error.stack });
   }
 }
