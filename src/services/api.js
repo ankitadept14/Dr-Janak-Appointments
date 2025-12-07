@@ -13,6 +13,8 @@ const CORS_PROXY = isDevelopment ? 'https://cors-anywhere.herokuapp.com/' : '';
 const API_URL = isDevelopment ? CORS_PROXY + GAS_URL : GAS_URL;
 
 // Check if API_URL is configured
+console.log('GAS_URL:', GAS_URL);
+console.log('import.meta.env.VITE_GAS_API_URL:', import.meta.env.VITE_GAS_API_URL);
 if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
   console.error('ERROR: API_URL not configured! Add VITE_GAS_API_URL to .env file');
 }
