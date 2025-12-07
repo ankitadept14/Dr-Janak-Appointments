@@ -60,8 +60,9 @@ export async function createAppointment(appointmentData) {
     
     const response = await fetch(GAS_URL, {
       method: 'POST',
+      // Use text/plain to avoid CORS preflight
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain;charset=utf-8',
       },
       mode: 'cors',
       credentials: 'omit',
@@ -96,7 +97,7 @@ export async function updateAppointment(id, updates) {
     const response = await fetch(GAS_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain;charset=utf-8',
       },
       mode: 'cors',
       credentials: 'omit',
@@ -127,7 +128,7 @@ export async function deleteAppointment(id) {
     const response = await fetch(GAS_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain;charset=utf-8',
       },
       mode: 'cors',
       credentials: 'omit',
