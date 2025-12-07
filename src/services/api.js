@@ -17,36 +17,72 @@ if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
 /**
  * Fetch all appointments or filter by date
  */
+function jsonpRequest(params) {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('JSONP requests only supported in browser'));
+      return;
+    }
+
+    const callbackName = `jsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    let timeoutId;
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+      try {
+        delete window[callbackName];
+      } catch (err) {
+        window[callbackName] = undefined;
+      }
+    };
+
+    window[callbackName] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('Network error'));
+    };
+
+    const filteredParams = Object.entries(params).reduce((acc, [key, value]) => {
+      if (value !== undefined && value !== null) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+
+    const searchParams = new URLSearchParams({ ...filteredParams, callback: callbackName });
+    script.src = `${GAS_URL}?${searchParams.toString()}`;
+
+    const target = document.body || document.head || document.documentElement;
+    target.appendChild(script);
+
+    timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('Request timed out'));
+    }, 15000);
+  });
+}
+
 /**
  * Fetch all appointments or filter by date
  */
 export async function getAppointments(date = null) {
   try {
-    const url = date ? `${GAS_URL}?date=${date}` : GAS_URL;
-    console.log('Fetching appointments from:', url);
-    
-    // Try with CORS first
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      mode: 'cors',
-      credentials: 'omit'
-    });
-    
-    console.log('Response status:', response.status);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const params = date ? { date } : {};
+    const data = await jsonpRequest(params);
     console.log('Fetched data:', data);
     return data;
   } catch (error) {
     console.error('Error fetching appointments:', error);
-    // Return empty array instead of throwing to allow app to function
     return { success: true, appointments: [] };
   }
 }
@@ -57,30 +93,7 @@ export async function getAppointments(date = null) {
 export async function createAppointment(appointmentData) {
   try {
     console.log('Creating appointment:', appointmentData);
-    const body = new URLSearchParams({
-      action: 'create',
-      ...appointmentData,
-    });
-
-    const response = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-      },
-      mode: 'cors',
-      credentials: 'omit',
-      body: body.toString(),
-    });
-    
-    console.log('Create response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('API Error:', errorData);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const data = await jsonpRequest({ action: 'create', ...appointmentData });
     console.log('Created appointment:', data);
     return data;
   } catch (error) {
@@ -94,27 +107,7 @@ export async function createAppointment(appointmentData) {
  */
 export async function updateAppointment(id, updates) {
   try {
-    const body = new URLSearchParams({
-      action: 'update',
-      id,
-      ...updates,
-    });
-
-    const response = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-      },
-      mode: 'cors',
-      credentials: 'omit',
-      body: body.toString(),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const data = await jsonpRequest({ action: 'update', id, ...updates });
     return data;
   } catch (error) {
     console.error('Error updating appointment:', error);
@@ -127,26 +120,7 @@ export async function updateAppointment(id, updates) {
  */
 export async function deleteAppointment(id) {
   try {
-    const body = new URLSearchParams({
-      action: 'delete',
-      id,
-    });
-
-    const response = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-      },
-      mode: 'cors',
-      credentials: 'omit',
-      body: body.toString(),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const data = await jsonpRequest({ action: 'delete', id });
     return data;
   } catch (error) {
     console.error('Error deleting appointment:', error);
