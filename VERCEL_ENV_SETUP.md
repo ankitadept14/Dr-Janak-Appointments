@@ -16,7 +16,7 @@ The app is getting HTTP 500 error because Vercel doesn't have the `VITE_GAS_API_
 3. Click **Add New**
 4. Fill in:
    - **Name**: `VITE_GAS_API_URL`
-   - **Value**: `https://script.google.com/macros/s/AKfycbytQnaTF9Ml70w7cgigKxxB-0R9HbbHUmgVK6-w91TD-ctzyH-POsgPp5fVUT_rmyfD/exec`
+   - **Value**: `https://script.google.com/macros/s/AKfycbxfD1Wp6mPph1qiWxdttqJp4nBbAKP8dK-63rcH9jQORZrCFT6Tn6oiLpnVqLyhUnFs/exec`
    - **Environments**: Select all (Development, Preview, Production)
 
 5. Click **Save**
@@ -55,7 +55,7 @@ The app is getting HTTP 500 error because Vercel doesn't have the `VITE_GAS_API_
 
 ## Your Google Apps Script URL:
 ```
-https://script.google.com/macros/s/AKfycbytQnaTF9Ml70w7cgigKxxB-0R9HbbHUmgVK6-w91TD-ctzyH-POsgPp5fVUT_rmyfD/exec
+https://script.google.com/macros/s/AKfycbxfD1Wp6mPph1qiWxdttqJp4nBbAKP8dK-63rcH9jQORZrCFT6Tn6oiLpnVqLyhUnFs/exec
 ```
 
 Copy this exactly to Vercel environment variables.
