@@ -30,6 +30,27 @@ const calculateAge = (dob) => {
   return age >= 0 ? age : '';
 };
 
+const formatTimeDisplay = (value) => {
+  if (!value) return '';
+  if (String(value).includes('T')) {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(String(value))) {
+    const parts = String(value).split(':');
+    return `${parts[0].padStart(2,'0')}:${parts[1].padStart(2,'0')}`;
+  }
+  return String(value);
+};
+
+const getPatientDocLink = (patients, phone, name) => {
+  if (!patients) return '';
+  const byPhone = patients.find(p => p.phone && phone && p.phone === phone);
+  if (byPhone && byPhone.googleDocLink) return byPhone.googleDocLink;
+  const byName = patients.find(p => p.name && name && p.name.toLowerCase() === name.toLowerCase());
+  return byName?.googleDocLink || '';
+};
+
 // Session storage helpers (7-day expiry)
 const saveSession = (user) => {
   const session = {
@@ -112,10 +133,13 @@ function App() {
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [editingStaffId, setEditingStaffId] = useState(null);
   const [editingAptId, setEditingAptId] = useState(null);
+  const [editingPatientData, setEditingPatientData] = useState(null);
+  const [editingStaffData, setEditingStaffData] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [expandedCalendarDate, setExpandedCalendarDate] = useState(null);
   const [showGenderDob, setShowGenderDob] = useState(false);
+  const [showNewPatientFields, setShowNewPatientFields] = useState(false);
   const [formData, setFormData] = useState({
     patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: '', googleDocLink: ''
   });
@@ -270,6 +294,19 @@ function App() {
       doctorName = formData.doctor;
     }
 
+    // Client-side double-booking guard
+    const conflict = appointments.find(a =>
+      a.doctor === doctorName &&
+      a.date === toBackendDate(formData.date) &&
+      formatTimeDisplay(a.time) === formatTimeDisplay(formData.time) &&
+      a.status !== 'NotComing'
+    );
+    if (conflict) {
+      setLoading(false);
+      setError('This slot is already booked for this doctor.');
+      return;
+    }
+
     const result = await createAppointment({
       patientName: formData.patientName,
       phone: formData.phone,
@@ -290,6 +327,7 @@ function App() {
       }
       
       resetForm();
+      await fetchAllData(); // refresh metadata (last/upcoming)
       setTimeout(() => setSuccess(null), 3000);
     } else {
       setError(result.error || 'Failed to book appointment');
@@ -302,6 +340,7 @@ function App() {
     if (result.success) {
       setSuccess(`Appointment marked as ${newStatus}`);
       setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: newStatus } : a));
+      await fetchAllData();
       setTimeout(() => setSuccess(null), 2000);
     } else {
       setError(result.error);
@@ -649,7 +688,7 @@ function App() {
                         <tr key={apt.id}>
                           <td>{apt.patientName}</td>
                           <td>{apt.displayDate}</td>
-                          <td>{apt.time}</td>
+                          <td>{formatTimeDisplay(apt.time)}</td>
                           <td>
                             <select 
                               value={apt.status} 
@@ -799,7 +838,7 @@ function App() {
                                 <div className="day-appointments">
                                   {aptsForDay.map(apt => (
                                     <div key={apt.id} className="day-apt-item">
-                                      <div className="day-apt-time">{apt.time}</div>
+                                      <div className="day-apt-time">{formatTimeDisplay(apt.time)}</div>
                                       <div className="day-apt-name">{apt.patientName}</div>
                                       <div className={`day-apt-status status-${apt.status.toLowerCase()}`}>{apt.status}</div>
                                     </div>
@@ -826,6 +865,7 @@ function App() {
                         <th>Time</th>
                         <th>Status</th>
                         <th>WhatsApp</th>
+                        <th>History</th>
                         <th>Notes</th>
                         <th>Actions</th>
                       </tr>
@@ -861,7 +901,7 @@ function App() {
                                 ))}
                               </select>
                             ) : (
-                              apt.time
+                              formatTimeDisplay(apt.time)
                             )}
                           </td>
                           <td>
@@ -884,6 +924,21 @@ function App() {
                             >
                               <MessageCircle size={18} />
                             </button>
+                          </td>
+                          <td>
+                            {(() => {
+                              const link = getPatientDocLink(patients, apt.phone, apt.patientName);
+                              return (
+                                <button 
+                                  className="btn-icon" 
+                                  onClick={() => link && window.open(link, '_blank')}
+                                  disabled={!link}
+                                  title={link ? 'Open history' : 'No history link'}
+                                >
+                                  History
+                                </button>
+                              );
+                            })()}
                           </td>
                           <td className="notes-cell">
                             {editingNoteId === apt.id ? (
@@ -919,6 +974,7 @@ function App() {
                                     if (result.success) {
                                       setSuccess('Appointment updated');
                                       setEditingAptId(null);
+                                      await fetchAllData();
                                       setTimeout(() => setSuccess(null), 2000);
                                     } else {
                                       setError(result.error);
@@ -980,14 +1036,63 @@ function App() {
                     <tbody>
                       {patients.map(p => (
                         <tr key={p.id}>
-                          <td>{p.name}</td>
-                          <td>{p.phone}</td>
-                          <td>{p.age}</td>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <input
+                                type="text"
+                                value={editingPatientData?.name || ''}
+                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, name: e.target.value }))}
+                                required
+                              />
+                            ) : p.name}
+                          </td>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <input
+                                type="tel"
+                                value={editingPatientData?.phone || ''}
+                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, phone: e.target.value }))}
+                                required
+                              />
+                            ) : p.phone}
+                          </td>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <input
+                                type="date"
+                                value={displayToIsoDate(editingPatientData?.dob || '')}
+                                onChange={(e) => {
+                                  const newDob = isoToDisplayDate(e.target.value);
+                                  setEditingPatientData(prev => ({ ...prev, dob: newDob, age: calculateAge(newDob) }));
+                                }}
+                              />
+                            ) : (p.age || calculateAge(p.dob))}
+                          </td>
                           <td>{p.lastAppointment || '-'}</td>
                           <td>{p.upcomingAppointment || '-'}</td>
                           <td>
-                            {p.googleDocLink && (
-                              <a href={p.googleDocLink} target="_blank" rel="noopener noreferrer" className="btn-link">View Doc</a>
+                            {editingPatientId === p.id ? (
+                              <div className="inline-edit">
+                                <input
+                                  type="url"
+                                  value={editingPatientData?.googleDocLink || ''}
+                                  onChange={(e) => setEditingPatientData(prev => ({ ...prev, googleDocLink: e.target.value }))}
+                                  placeholder="Google Doc link"
+                                />
+                                <button className="btn-sm" onClick={() => handleUpdatePatient(p.id, editingPatientData)}><Save size={14} /></button>
+                                <button className="btn-sm" onClick={() => { setEditingPatientId(null); setEditingPatientData(null); }}><XCircle size={14} /></button>
+                              </div>
+                            ) : (
+                              <div className="inline-edit">
+                                {p.googleDocLink ? (
+                                  <button className="btn-link-inline" onClick={() => window.open(p.googleDocLink, '_blank')}>History</button>
+                                ) : (
+                                  <span className="text-muted">No link</span>
+                                )}
+                                <button className="btn-icon" onClick={() => { setEditingPatientId(p.id); setEditingPatientData(p); }} title="Edit patient">
+                                  <Edit2 size={16} />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -1120,22 +1225,52 @@ function App() {
                             </span>
                           </td>
                           <td>
-                            <button 
-                              className="btn btn-secondary btn-sm" 
-                              onClick={async () => {
-                                const newStatus = doc.status === 'active' ? 'inactive' : 'active';
-                                const result = await updateUser(doc.id, { status: newStatus });
-                                if (result.success) {
-                                  setSuccess(`Staff ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
-                                  await fetchAllData();
-                                  setTimeout(() => setSuccess(null), 2000);
-                                } else {
-                                  setError(result.error);
-                                }
-                              }}
-                            >
-                              {doc.status === 'active' ? 'Deactivate' : 'Activate'}
-                            </button>
+                            {editingStaffId === doc.id ? (
+                              <div className="inline-edit">
+                                <input
+                                  type="text"
+                                  value={editingStaffData?.doctorName || ''}
+                                  onChange={(e) => setEditingStaffData(prev => ({ ...prev, doctorName: e.target.value }))}
+                                  placeholder="Doctor name"
+                                />
+                                <button className="btn-sm" onClick={async () => {
+                                  const result = await updateUser(doc.id, editingStaffData);
+                                  if (result.success) {
+                                    setSuccess('Staff updated successfully!');
+                                    await fetchAllData();
+                                    setEditingStaffId(null);
+                                    setEditingStaffData(null);
+                                    setTimeout(() => setSuccess(null), 2000);
+                                  } else {
+                                    setError(result.error);
+                                  }
+                                }}><Save size={14} /></button>
+                                <button className="btn-sm" onClick={() => { setEditingStaffId(null); setEditingStaffData(null); }}><XCircle size={14} /></button>
+                              </div>
+                            ) : (
+                              <>
+                                <button className="btn btn-sm" onClick={() => { setEditingStaffId(doc.id); setEditingStaffData(doc); }}>
+                                  <Edit2 size={14} /> Edit
+                                </button>
+                                <button 
+                                  className="btn btn-secondary btn-sm" 
+                                  disabled={doc.role === 'head-doctor'}
+                                  onClick={async () => {
+                                    const newStatus = doc.status === 'active' ? 'inactive' : 'active';
+                                    const result = await updateUser(doc.id, { status: newStatus });
+                                    if (result.success) {
+                                      setSuccess(`Staff ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
+                                      await fetchAllData();
+                                      setTimeout(() => setSuccess(null), 2000);
+                                    } else {
+                                      setError(result.error);
+                                    }
+                                  }}
+                                >
+                                  {doc.status === 'active' ? 'Deactivate' : 'Activate'}
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1241,21 +1376,48 @@ function App() {
                 </div>
 
                 <div className="form-group">
-                  <label>Patient</label>
+                  <label>Patient Name <span className="required">*</span></label>
                   <div className="patient-search-wrapper">
                     <input
                       type="text"
                       value={patientSearchTerm}
-                      onChange={handlePatientSearch}
-                      onFocus={() => setShowPatientSearch(true)}
+                      onChange={(e) => {
+                        const term = e.target.value;
+                        setPatientSearchTerm(term);
+                        setFormData(prev => ({ ...prev, patientName: term }));
+                        
+                        if (term.length >= 3) {
+                          getPatients(term).then(result => {
+                            const results = result.success ? result.patients : [];
+                            setSearchResults(results);
+                            setShowPatientSearch(true);
+                            if (results.length === 0) {
+                              setShowNewPatientFields(true);
+                            } else {
+                              setShowNewPatientFields(false);
+                            }
+                          });
+                        } else {
+                          setSearchResults([]);
+                          setShowPatientSearch(false);
+                          setShowNewPatientFields(false);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (searchResults.length > 0) setShowPatientSearch(true);
+                      }}
                       onBlur={() => setTimeout(() => setShowPatientSearch(false), 200)}
                       placeholder="Type patient name or phone (min 3 characters)..."
                       autoComplete="off"
+                      required
                     />
                     {showPatientSearch && searchResults.length > 0 && (
                       <div className="search-dropdown">
                         {searchResults.map(p => (
-                          <div key={p.id} className="search-item" onClick={() => selectPatient(p)}>
+                          <div key={p.id} className="search-item" onClick={() => {
+                            selectPatient(p);
+                            setShowNewPatientFields(false);
+                          }}>
                             <div className="search-item-name">{p.name}</div>
                             <div className="search-item-details">
                               <Phone size={12} /> {p.phone}
@@ -1268,25 +1430,70 @@ function App() {
                     {showPatientSearch && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
                       <div className="search-dropdown">
                         <div className="search-item-empty">
-                          No patients found. Patient will be created automatically.
+                          No patients found. Fill in details below to create new patient.
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
 
+                <div className="form-group">
+                  <label>Phone Number <span className="required">*</span></label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="Patient phone number"
+                    required
+                  />
+                </div>
+
+                {showNewPatientFields && (
+                  <>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Gender</label>
+                        <select value={formData.gender} onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}>
+                          <option value="">Select gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Date of Birth</label>
+                        <input 
+                          type="date" 
+                          value={displayToIsoDate(formData.dob)} 
+                          onChange={(e) => setFormData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))} 
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Google Doc Link</label>
+                      <input 
+                        type="url" 
+                        value={formData.googleDocLink || ''} 
+                        onChange={(e) => setFormData(prev => ({ ...prev, googleDocLink: e.target.value }))} 
+                        placeholder="https://docs.google.com/..."
+                      />
+                    </div>
+                  </>
+                )}
+
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Date</label>
+                    <label>Date <span className="required">*</span></label>
                     <input 
                       type="date" 
                       value={displayToIsoDate(formData.date)} 
                       onChange={(e) => setFormData(prev => ({ ...prev, date: isoToDisplayDate(e.target.value) }))} 
+                      required
                     />
                   </div>
                   <div className="form-group">
-                    <label>Time</label>
-                    <select value={formData.time} onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}>
+                    <label>Time <span className="required">*</span></label>
+                    <select value={formData.time} onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))} required>
                       <option value="">Select time</option>
                       {timeSlots.map(slot => (
                         <option key={slot} value={slot}>{slot}</option>

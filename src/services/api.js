@@ -20,6 +20,32 @@ export function toBackendDate(ddmmyyyy) {
   return ddmmyyyy;
 }
 
+// Normalize time to HH:MM (24h)
+function normalizeTime(value) {
+  if (!value) return '';
+  // If ISO datetime
+  if (String(value).includes('T')) {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+  // If HH:MM:SS
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(String(value))) {
+    const parts = String(value).split(':');
+    return `${parts[0].padStart(2,'0')}:${parts[1].padStart(2,'0')}`;
+  }
+  // If number from Sheets (fraction of a day)
+  const num = Number(value);
+  if (!isNaN(num) && num > 0 && num < 2) {
+    const totalMinutes = Math.round(num * 24 * 60);
+    const h = String(Math.floor(totalMinutes / 60)).padStart(2,'0');
+    const m = String(totalMinutes % 60).padStart(2,'0');
+    return `${h}:${m}`;
+  }
+  return String(value);
+}
+
 // Convert YYYY-MM-DD to DD-MM-YYYY for display
 export function toDisplayDate(yyyymmdd) {
   if (!yyyymmdd) return '';
@@ -168,8 +194,11 @@ export async function getAppointments() {
     if (data.appointments) {
       data.appointments = data.appointments.map(apt => ({
         ...apt,
-        displayDate: toDisplayDate(apt.date),
-        originalDate: apt.date
+        // Normalize date if ISO with time
+        date: apt.date && String(apt.date).includes('T') ? String(apt.date).slice(0,10) : apt.date,
+        displayDate: toDisplayDate(apt.date && String(apt.date).includes('T') ? String(apt.date).slice(0,10) : apt.date),
+        originalDate: apt.date && String(apt.date).includes('T') ? String(apt.date).slice(0,10) : apt.date,
+        time: normalizeTime(apt.time)
       }));
     }
 
