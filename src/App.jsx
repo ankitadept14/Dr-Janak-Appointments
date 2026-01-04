@@ -27,6 +27,7 @@ function App() {
   const [showPatientSearch, setShowPatientSearch] = useState(false);
   const [patientSearchTerm, setPatientSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [formData, setFormData] = useState({
     patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: ''
   });
@@ -481,7 +482,6 @@ function App() {
   if (view === 'doctor' || view === 'head-doctor') {
     const upcoming = getUpcomingAppointments().slice(0, 4);
     const allUpcoming = getUpcomingAppointments();
-    const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
     return (
       <div className="app-container">
