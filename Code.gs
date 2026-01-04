@@ -237,11 +237,13 @@ function updateAppointment(data, e) {
   
   // Find the row with matching ID
   const rowIndex = allData.findIndex((row, index) => 
-    index > 0 && row[idColumn] === data.id
+    index > 0 && String(row[idColumn]) === String(data.id)
   );
   
   if (rowIndex === -1) {
     return createResponse({ error: 'Appointment not found' }, e);
+  }
+  
   // Update fields as needed
   if (data.status) {
     const statusColumn = headers.indexOf('status');
@@ -269,8 +271,6 @@ function updateAppointment(data, e) {
   }
   
   return createResponse({ success: true, message: 'Appointment updated' }, e);
-  
-  return createResponse({ success: true, message: 'Appointment updated' }, e);
 }
 
 /**
@@ -290,7 +290,7 @@ function deleteAppointment(data, e) {
   
   // Find the row with matching ID
   const rowIndex = allData.findIndex((row, index) => 
-    index > 0 && row[idColumn] === data.id
+    index > 0 && String(row[idColumn]) === String(data.id)
   );
   
   if (rowIndex === -1) {
