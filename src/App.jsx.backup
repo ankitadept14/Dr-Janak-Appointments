@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   User, UserCog, Calendar, Clock, Phone, FileText, CheckCircle, Plus, LogOut, RefreshCw,
-  Edit2, Trash2, Home, MessageCircle, Search, X, ChevronDown, ChevronUp, Eye, EyeOff,
-  ChevronLeft, ChevronRight, Save, XCircle, ExternalLink
+  Edit2, Trash2, Home, MessageCircle, Search, X, ChevronDown, ChevronUp, Eye, EyeOff
 } from 'lucide-react';
 import {
   login, getAppointments, createAppointment, updateAppointment, deleteAppointment,
@@ -11,85 +10,6 @@ import {
   generateTimeSlots, isoToDisplayDate, displayToIsoDate
 } from './services/api';
 import './App.css';
-
-// Helper: Calculate age from DD-MM-YYYY format
-const calculateAge = (dob) => {
-  if (!dob || dob.length < 10) return '';
-  const [day, month, year] = dob.split('-').map(Number);
-  if (!day || !month || !year) return '';
-  
-  const birthDate = new Date(year, month - 1, day);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  
-  return age >= 0 ? age : '';
-};
-
-// Session storage helpers (7-day expiry)
-const saveSession = (user) => {
-  const session = {
-    user,
-    expiry: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
-  };
-  localStorage.setItem('clinicSession', JSON.stringify(session));
-};
-
-const getSession = () => {
-  const sessionStr = localStorage.getItem('clinicSession');
-  if (!sessionStr) return null;
-  
-  const session = JSON.parse(sessionStr);
-  if (Date.now() > session.expiry) {
-    localStorage.removeItem('clinicSession');
-    return null;
-  }
-  
-  return session.user;
-};
-
-const clearSession = () => {
-  localStorage.removeItem('clinicSession');
-};
-
-// Calendar helper: Generate calendar grid for a given month/year
-const generateCalendarGrid = (year, month) => {
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const daysInMonth = lastDay.getDate();
-  const startDayOfWeek = firstDay.getDay();
-  
-  const grid = [];
-  let week = [];
-  
-  // Add empty cells for days before month starts
-  for (let i = 0; i < startDayOfWeek; i++) {
-    week.push(null);
-  }
-  
-  // Add all days of the month
-  for (let day = 1; day <= daysInMonth; day++) {
-    week.push(day);
-    if (week.length === 7) {
-      grid.push(week);
-      week = [];
-    }
-  }
-  
-  // Add remaining empty cells
-  if (week.length > 0) {
-    while (week.length < 7) {
-      week.push(null);
-    }
-    grid.push(week);
-  }
-  
-  return grid;
-};
 
 function App() {
   const [view, setView] = useState('login');
@@ -100,7 +20,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [activeTab, setActiveTab] = useState('view'); // Default for nurse: 'view'
+  const [activeTab, setActiveTab] = useState('appointments');
   const [selectedDate, setSelectedDate] = useState(null);
   const [expandedAptId, setExpandedAptId] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
@@ -109,35 +29,11 @@ function App() {
   const [patientSearchTerm, setPatientSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
-  const [editingPatientId, setEditingPatientId] = useState(null);
-  const [editingStaffId, setEditingStaffId] = useState(null);
-  const [editingAptId, setEditingAptId] = useState(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [expandedCalendarDate, setExpandedCalendarDate] = useState(null);
-  const [showGenderDob, setShowGenderDob] = useState(false);
   const [formData, setFormData] = useState({
-    patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: '', googleDocLink: ''
+    patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: ''
   });
 
   const timeSlots = generateTimeSlots();
-
-  // Session persistence: Check on mount
-  useEffect(() => {
-    const savedUser = getSession();
-    if (savedUser) {
-      setCurrentUser(savedUser);
-      setView(savedUser.role);
-      fetchAllData();
-      
-      // Set default tab based on role
-      if (savedUser.role === 'doctor' || savedUser.role === 'head-doctor') {
-        setActiveTab('calendar');
-      } else if (savedUser.role === 'nurse') {
-        setActiveTab('view');
-      }
-    }
-  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -146,6 +42,7 @@ function App() {
     
     const { loginId, loginPassword } = e.target.elements;
     
+    // Validation
     if (!loginId.value.trim()) {
       setError('Please enter your login ID');
       return;
@@ -158,37 +55,32 @@ function App() {
     setLoading(true);
     
     try {
+      console.log('Attempting login with ID:', loginId.value.trim());
       const result = await login(loginId.value.trim(), loginPassword.value);
+      console.log('Login result:', result);
       setLoading(false);
 
       if (result.success && result.user) {
         setCurrentUser(result.user);
         setView(result.user.role);
-        saveSession(result.user); // Save to localStorage with 7-day expiry
         await fetchAllData();
-        
-        // Set default tab based on role
-        if (result.user.role === 'doctor' || result.user.role === 'head-doctor') {
-          setActiveTab('calendar');
-        } else if (result.user.role === 'nurse') {
-          setActiveTab('view');
-        }
-        
         setSuccess('Logged in successfully!');
         setTimeout(() => setSuccess(null), 3000);
       } else {
+        // Don't auto-dismiss error - user needs to read it
         const errorMsg = result.error || 'Invalid login credentials. Please check your ID and password.';
+        console.error('Login failed:', errorMsg);
         setError(errorMsg);
       }
     } catch (err) {
       setLoading(false);
       const errorMsg = 'Connection error. Please verify: 1) Google Apps Script is deployed 2) Users sheet exists with your credentials';
+      console.error('Login error:', err);
       setError(errorMsg);
     }
   };
 
   const handleLogout = () => {
-    clearSession(); // Clear localStorage
     setCurrentUser(null);
     setView('login');
     setAppointments([]);
@@ -213,12 +105,11 @@ function App() {
 
   const resetForm = () => {
     setFormData({
-      patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: '', googleDocLink: ''
+      patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: ''
     });
     setShowPatientSearch(false);
     setPatientSearchTerm('');
     setSearchResults([]);
-    setShowGenderDob(false);
   };
 
   const handlePatientSearch = async (e) => {
@@ -247,7 +138,27 @@ function App() {
     setPatientSearchTerm(patient.name);
     setShowPatientSearch(false);
     setSearchResults([]);
-    setShowGenderDob(true); // Show gender/DOB fields after selection
+  };
+
+  const createNewPatient = async () => {
+    if (!formData.patientName || !formData.phone) {
+      setError('Patient name and phone are required');
+      return;
+    }
+
+    const result = await createPatient({
+      name: formData.patientName,
+      phone: formData.phone,
+      gender: formData.gender,
+      dob: formData.dob
+    });
+
+    if (result.success) {
+      setSuccess('Patient created successfully!');
+      await fetchAllData();
+    } else {
+      setError(result.error || 'Failed to create patient');
+    }
   };
 
   const handleCreateAppointment = async (e) => {
@@ -255,20 +166,15 @@ function App() {
     setLoading(true);
     setError(null);
 
-    // Determine doctor name
-    let doctorName = '';
-    if (currentUser.role === 'doctor') {
-      doctorName = currentUser.doctorName;
-    } else if (currentUser.role === 'head-doctor') {
-      doctorName = formData.doctor || currentUser.doctorName;
-    } else if (currentUser.role === 'nurse') {
-      if (!formData.doctor) {
-        setError('Please select a doctor');
-        setLoading(false);
-        return;
-      }
-      doctorName = formData.doctor;
+    if (!formData.doctor && (currentUser.role === 'nurse' || (currentUser.role === 'head-doctor' && !formData.doctor))) {
+      setError('Please select a doctor');
+      setLoading(false);
+      return;
     }
+
+    const doctorName = currentUser.role === 'doctor' ? currentUser.doctorName :
+                       currentUser.role === 'head-doctor' && !formData.doctor ? currentUser.doctorName :
+                       formData.doctor;
 
     const result = await createAppointment({
       patientName: formData.patientName,
@@ -276,20 +182,14 @@ function App() {
       date: formData.date,
       time: formData.time,
       doctor: doctorName,
-      notes: formData.notes, // Include notes
       createdBy: currentUser.id
     });
 
     setLoading(false);
     if (result.success) {
       setSuccess('Appointment booked successfully!');
-      
-      // Instant refresh: append new appointment to state
-      if (result.appointment) {
-        setAppointments(prev => [...prev, result.appointment]);
-      }
-      
       resetForm();
+      await fetchAllData();
       setTimeout(() => setSuccess(null), 3000);
     } else {
       setError(result.error || 'Failed to book appointment');
@@ -297,11 +197,11 @@ function App() {
     }
   };
 
-  const handleStatusChange = async (apt, newStatus) => {
+  const handleStatusToggle = async (apt, newStatus) => {
     const result = await updateAppointment(apt.id, { status: newStatus, updatedBy: currentUser.id });
     if (result.success) {
       setSuccess(`Appointment marked as ${newStatus}`);
-      setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: newStatus } : a));
+      await fetchAllData();
       setTimeout(() => setSuccess(null), 2000);
     } else {
       setError(result.error);
@@ -312,7 +212,7 @@ function App() {
     const result = await updateAppointment(aptId, { notes: editingNoteText, updatedBy: currentUser.id });
     if (result.success) {
       setEditingNoteId(null);
-      setAppointments(prev => prev.map(a => a.id === aptId ? { ...a, notes: editingNoteText } : a));
+      await fetchAllData();
     } else {
       setError(result.error);
     }
@@ -323,75 +223,9 @@ function App() {
     const result = await deleteAppointment(id);
     if (result.success) {
       setSuccess('Appointment deleted');
-      setAppointments(prev => prev.filter(a => a.id !== id));
+      await fetchAllData();
     } else {
       setError(result.error);
-    }
-  };
-
-  const handleCreatePatient = async (patientData) => {
-    setLoading(true);
-    const result = await createPatient(patientData);
-    setLoading(false);
-
-    if (result.success) {
-      setSuccess('Patient created successfully!');
-      
-      // Instant refresh: append new patient to state
-      if (result.patient) {
-        setPatients(prev => [...prev, result.patient]);
-      }
-      
-      setTimeout(() => setSuccess(null), 3000);
-      return true;
-    } else {
-      setError(result.error || 'Failed to create patient');
-      return false;
-    }
-  };
-
-  const handleUpdatePatient = async (id, data) => {
-    const result = await updatePatient(id, data);
-    if (result.success) {
-      setSuccess('Patient updated successfully!');
-      setPatients(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
-      setEditingPatientId(null);
-      setTimeout(() => setSuccess(null), 2000);
-    } else {
-      setError(result.error || 'Failed to update patient');
-    }
-  };
-
-  const handleCreateUser = async (userData) => {
-    setLoading(true);
-    const result = await createUser(userData);
-    setLoading(false);
-
-    if (result.success) {
-      setSuccess('Staff member added successfully!');
-      
-      // Instant refresh: append new user to state
-      if (result.user) {
-        setDoctors(prev => [...prev, result.user]);
-      }
-      
-      setTimeout(() => setSuccess(null), 3000);
-      return true;
-    } else {
-      setError(result.error || 'Failed to add staff');
-      return false;
-    }
-  };
-
-  const handleUpdateUser = async (id, data) => {
-    const result = await updateUser(id, data);
-    if (result.success) {
-      setSuccess('Staff updated successfully!');
-      setDoctors(prev => prev.map(d => d.id === id ? { ...d, ...data } : d));
-      setEditingStaffId(null);
-      setTimeout(() => setSuccess(null), 2000);
-    } else {
-      setError(result.error || 'Failed to update staff');
     }
   };
 
@@ -400,18 +234,27 @@ function App() {
     if (currentUser.role === 'doctor') {
       filtered = filtered.filter(apt => apt.doctor === currentUser.doctorName);
     }
+    if (!expandedAptId) {
+      filtered = filtered.filter(apt => apt.status !== 'NotComing');
+    }
     return filtered;
   };
 
-  const getAppointmentsForCalendarDate = (day) => {
-    if (!day) return [];
-    const dateStr = `${String(day).padStart(2, '0')}-${String(currentMonth + 1).padStart(2, '0')}-${currentYear}`;
-    const backendDate = toBackendDate(dateStr);
-    return getVisibleAppointments().filter(apt => apt.date === backendDate);
+  const getUpcomingAppointments = () => {
+    const visible = getVisibleAppointments();
+    const today = getTodayBackendDate();
+    const upcoming = visible
+      .filter(apt => apt.date >= today)
+      .sort((a, b) => {
+        const dateCompare = a.date.localeCompare(b.date);
+        return dateCompare !== 0 ? dateCompare : a.time.localeCompare(b.time);
+      });
+    return upcoming;
   };
 
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const calendarGrid = generateCalendarGrid(currentYear, currentMonth);
+  const getAppointmentsForDate = (date) => {
+    return appointments.filter(apt => apt.date === toBackendDate(date) && apt.doctor === currentUser.doctorName);
+  };
 
   if (!currentUser || view === 'login') {
     return (
@@ -483,7 +326,7 @@ function App() {
         </header>
 
         <div className="tabs">
-          <button className={`tab ${activeTab === 'view' ? 'active' : ''}`} onClick={() => setActiveTab('view')}>
+          <button className={`tab ${activeTab === 'appointments' ? 'active' : ''}`} onClick={() => setActiveTab('appointments')}>
             <Calendar size={18} /> View Appointments
           </button>
           <button className={`tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => setActiveTab('book')}>
@@ -500,19 +343,16 @@ function App() {
               <h2 className="card-title"><Plus size={20} /> Book Appointment</h2>
               <form onSubmit={handleCreateAppointment} className="appointment-form">
                 <div className="form-group">
-                  <label>Patient Name <span className="required">*</span></label>
+                  <label>Patient <span className="required">*</span></label>
                   <div className="patient-search-wrapper">
                     <input
                       type="text"
                       value={patientSearchTerm}
                       onChange={handlePatientSearch}
-                      onFocus={() => {
-                        if (searchResults.length > 0) setShowPatientSearch(true);
-                      }}
+                      onFocus={() => setShowPatientSearch(true)}
                       onBlur={() => setTimeout(() => setShowPatientSearch(false), 200)}
-                      placeholder="Type patient name (min 3 characters)..."
+                      placeholder="Type patient name or phone (min 3 characters)..."
                       autoComplete="off"
-                      required
                     />
                     {showPatientSearch && searchResults.length > 0 && (
                       <div className="search-dropdown">
@@ -527,61 +367,28 @@ function App() {
                         ))}
                       </div>
                     )}
+                    {showPatientSearch && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
+                      <div className="search-dropdown">
+                        <div className="search-item-empty">
+                          No patients found. Patient will be created automatically.
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  {formData.patientName && formData.phone && (
+                    <p className="selected-patient">
+                      <User size={14} /> {formData.patientName} • <Phone size={14} /> {formData.phone}
+                    </p>
+                  )}
                 </div>
-
-                <div className="form-group">
-                  <label>Phone Number <span className="required">*</span></label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="Patient phone number"
-                    required
-                  />
-                </div>
-
-                {showGenderDob && (
-                  <>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Gender</label>
-                        <select value={formData.gender} onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}>
-                          <option value="">Select gender</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Date of Birth</label>
-                        <input 
-                          type="date" 
-                          value={displayToIsoDate(formData.dob)} 
-                          onChange={(e) => setFormData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))} 
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {!showGenderDob && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary btn-block"
-                    onClick={() => setShowGenderDob(true)}
-                  >
-                    Patient not found? Add details
-                  </button>
-                )}
 
                 <div className="form-group">
                   <label>Doctor <span className="required">*</span></label>
                   <select value={formData.doctor} onChange={(e) => setFormData(prev => ({ ...prev, doctor: e.target.value }))} required>
                     <option value="">Select doctor</option>
-                    {doctors.filter(d => d.status === 'active').map(doc => (
+                    {doctors.map(doc => (
                       <option key={doc.id} value={doc.doctorName}>
-                        {doc.doctorName}
+                        {doc.doctorName} {doc.status === 'inactive' ? '(Inactive)' : ''}
                       </option>
                     ))}
                   </select>
@@ -613,14 +420,20 @@ function App() {
                   <textarea value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} placeholder="Any notes..." rows="3" />
                 </div>
 
-                <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                {!formData.patientName && (
+                  <button type="button" className="btn btn-secondary btn-block" onClick={createNewPatient}>
+                    Create New Patient
+                  </button>
+                )}
+
+                <button type="submit" className="btn btn-primary btn-block" disabled={loading || !formData.patientName}>
                   {loading ? 'Booking...' : 'Book Appointment'}
                 </button>
               </form>
             </section>
           )}
 
-          {activeTab === 'view' && (
+          {activeTab === 'appointments' && (
             <section className="card">
               <div className="card-header">
                 <h2 className="card-title"><Calendar size={20} /> All Appointments</h2>
@@ -632,66 +445,58 @@ function App() {
               {appointments.length === 0 ? (
                 <div className="empty-state"><Calendar size={48} /> <p>No appointments</p></div>
               ) : (
-                <div className="appointments-table-wrapper">
-                  <table className="appointments-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Status</th>
-                        <th>WhatsApp</th>
-                        <th>Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {appointments.map(apt => (
-                        <tr key={apt.id}>
-                          <td>{apt.patientName}</td>
-                          <td>{apt.displayDate}</td>
-                          <td>{apt.time}</td>
-                          <td>
-                            <select 
-                              value={apt.status} 
-                              onChange={(e) => handleStatusChange(apt, e.target.value)}
-                              className="status-select"
-                            >
-                              <option value="Scheduled">Scheduled</option>
-                              <option value="Arrived">Arrived</option>
-                              <option value="NotComing">Not Coming</option>
-                              <option value="Completed">Completed</option>
-                            </select>
-                          </td>
-                          <td>
-                            <button 
-                              className="btn-icon" 
-                              onClick={() => window.open(`https://wa.me/${apt.phone}`, '_blank')}
-                              title="WhatsApp"
-                            >
-                              <MessageCircle size={18} />
-                            </button>
-                          </td>
-                          <td className="notes-cell">
+                <div className="appointments-list">
+                  {appointments.map(apt => (
+                    <div key={apt.id} className={`appointment-card ${apt.status === 'NotComing' ? 'not-coming' : ''}`}>
+                      <div className="appointment-header">
+                        <div>
+                          <h3>{apt.patientName}</h3>
+                          <span className={`badge badge-${apt.status.toLowerCase()}`}>{apt.status}</span>
+                        </div>
+                        <div className="appointment-actions">
+                          <button className="btn-icon" onClick={() => window.open(`https://wa.me/${apt.phone}`, '_blank')} title="WhatsApp">
+                            <MessageCircle size={18} />
+                          </button>
+                          <button className="btn-icon" onClick={() => setExpandedAptId(expandedAptId === apt.id ? null : apt.id)}>
+                            {expandedAptId === apt.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="appointment-details">
+                        <div><Calendar size={16} /> {apt.displayDate}</div>
+                        <div><Clock size={16} /> {apt.time}</div>
+                        <div><Phone size={16} /> {apt.phone}</div>
+                      </div>
+
+                      {expandedAptId === apt.id && (
+                        <div className="appointment-expand">
+                          <div className="detail-row"><strong>Doctor:</strong> {apt.doctor}</div>
+                          <div className="detail-row"><strong>Created by:</strong> {apt.createdBy}</div>
+
+                          <div className="detail-row">
                             {editingNoteId === apt.id ? (
-                              <div className="inline-edit">
-                                <input 
-                                  type="text" 
-                                  value={editingNoteText} 
-                                  onChange={(e) => setEditingNoteText(e.target.value)}
-                                />
-                                <button className="btn-sm" onClick={() => handleNoteEdit(apt.id)}><Save size={14} /></button>
-                                <button className="btn-sm" onClick={() => setEditingNoteId(null)}><XCircle size={14} /></button>
+                              <div className="notes-editor">
+                                <textarea value={editingNoteText} onChange={(e) => setEditingNoteText(e.target.value)} rows="3" />
+                                <button className="btn btn-primary btn-sm" onClick={() => handleNoteEdit(apt.id)}>Save</button>
+                                <button className="btn btn-secondary btn-sm" onClick={() => setEditingNoteId(null)}>Cancel</button>
                               </div>
                             ) : (
-                              <span onClick={() => { setEditingNoteId(apt.id); setEditingNoteText(apt.notes || ''); }}>
-                                {apt.notes || 'Click to add'}
-                              </span>
+                              <div className="notes-view" onClick={() => { setEditingNoteId(apt.id); setEditingNoteText(apt.notes); }}>
+                                <FileText size={14} /> {apt.notes || 'Click to add notes'}
+                              </div>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+
+                          <div className="appointment-footer">
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDeleteAppointment(apt.id)}>
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
@@ -702,6 +507,9 @@ function App() {
   }
 
   if (view === 'doctor' || view === 'head-doctor') {
+    const upcoming = getUpcomingAppointments().slice(0, 4);
+    const allUpcoming = getUpcomingAppointments();
+
     return (
       <div className="app-container">
         <header className="dashboard-header">
@@ -718,7 +526,7 @@ function App() {
         </header>
 
         <div className="tabs">
-          <button className={`tab ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+          <button className={`tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             <Calendar size={18} /> Calendar
           </button>
           {view === 'head-doctor' && (
@@ -740,210 +548,55 @@ function App() {
         {success && <div className="alert alert-success">{success}<button onClick={() => setSuccess(null)}>×</button></div>}
 
         <div className="dashboard-content">
-          {activeTab === 'calendar' && (
-            <section className="card">
-              <div className="calendar-header">
-                <button className="btn-icon" onClick={() => {
-                  if (currentMonth === 0) {
-                    setCurrentMonth(11);
-                    setCurrentYear(currentYear - 1);
-                  } else {
-                    setCurrentMonth(currentMonth - 1);
-                  }
-                }}>
-                  <ChevronLeft size={20} />
-                </button>
-                <h2>{monthNames[currentMonth]} {currentYear}</h2>
-                <button className="btn-icon" onClick={() => {
-                  if (currentMonth === 11) {
-                    setCurrentMonth(0);
-                    setCurrentYear(currentYear + 1);
-                  } else {
-                    setCurrentMonth(currentMonth + 1);
-                  }
-                }}>
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-
-              <div className="calendar-grid">
-                <div className="calendar-weekdays">
-                  <div>Sun</div>
-                  <div>Mon</div>
-                  <div>Tue</div>
-                  <div>Wed</div>
-                  <div>Thu</div>
-                  <div>Fri</div>
-                  <div>Sat</div>
-                </div>
-
-                {calendarGrid.map((week, weekIdx) => (
-                  <div key={weekIdx} className="calendar-week">
-                    {week.map((day, dayIdx) => {
-                      const aptsForDay = day ? getAppointmentsForCalendarDate(day) : [];
-                      const dateKey = day ? `${day}-${currentMonth}-${currentYear}` : `empty-${weekIdx}-${dayIdx}`;
-                      const isExpanded = expandedCalendarDate === dateKey;
-                      
-                      return (
-                        <div 
-                          key={dateKey} 
-                          className={`calendar-day ${!day ? 'empty' : ''} ${isExpanded ? 'expanded' : ''}`}
-                          onClick={() => day && setExpandedCalendarDate(isExpanded ? null : dateKey)}
-                        >
-                          {day && (
-                            <>
-                              <div className="day-number">{day}</div>
-                              <div className="day-count">{aptsForDay.length} appt{aptsForDay.length !== 1 ? 's' : ''}</div>
-                              
-                              {isExpanded && aptsForDay.length > 0 && (
-                                <div className="day-appointments">
-                                  {aptsForDay.map(apt => (
-                                    <div key={apt.id} className="day-apt-item">
-                                      <div className="day-apt-time">{apt.time}</div>
-                                      <div className="day-apt-name">{apt.patientName}</div>
-                                      <div className={`day-apt-status status-${apt.status.toLowerCase()}`}>{apt.status}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
+          {activeTab === 'dashboard' && (
+            <>
+              <section className="card">
+                <h2 className="card-title"><Clock size={20} /> Upcoming Appointments</h2>
+                {upcoming.length === 0 ? (
+                  <p className="text-muted">No upcoming appointments</p>
+                ) : (
+                  <div className="upcoming-list">
+                    {(showAllUpcoming ? allUpcoming : upcoming).map(apt => (
+                      <div key={apt.id} className="upcoming-item">
+                        <div className="upcoming-patient">{apt.patientName}</div>
+                        <div className="upcoming-time">{apt.displayDate} at {apt.time}</div>
+                        <button className="btn-icon-small" onClick={() => window.open(`https://wa.me/${apt.phone}`, '_blank')}>
+                          <MessageCircle size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    {!showAllUpcoming && allUpcoming.length > 4 && (
+                      <button className="btn btn-secondary btn-block" onClick={() => setShowAllUpcoming(true)}>
+                        Show All ({allUpcoming.length})
+                      </button>
+                    )}
                   </div>
-                ))}
-              </div>
+                )}
+              </section>
 
-              <div style={{ marginTop: '20px' }}>
-                <h3>All Appointments</h3>
-                <div className="appointments-table-wrapper">
-                  <table className="appointments-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Date</th>
-                        <th>Time</th>
-                        <th>Status</th>
-                        <th>WhatsApp</th>
-                        <th>Notes</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getVisibleAppointments().map(apt => (
-                        <tr key={apt.id}>
-                          <td>{apt.patientName}</td>
-                          <td>
-                            {editingAptId === apt.id ? (
-                              <input 
-                                type="date" 
-                                defaultValue={displayToIsoDate(apt.displayDate)}
-                                onChange={(e) => {
-                                  const newDate = isoToDisplayDate(e.target.value);
-                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, displayDate: newDate, date: toBackendDate(newDate) } : a));
-                                }}
-                              />
-                            ) : (
-                              apt.displayDate
-                            )}
-                          </td>
-                          <td>
-                            {editingAptId === apt.id ? (
-                              <select 
-                                defaultValue={apt.time}
-                                onChange={(e) => {
-                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, time: e.target.value } : a));
-                                }}
-                              >
-                                {timeSlots.map(slot => (
-                                  <option key={slot} value={slot}>{slot}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              apt.time
-                            )}
-                          </td>
-                          <td>
-                            <select 
-                              value={apt.status} 
-                              onChange={(e) => handleStatusChange(apt, e.target.value)}
-                              className="status-select"
-                            >
-                              <option value="Scheduled">Scheduled</option>
-                              <option value="Arrived">Arrived</option>
-                              <option value="NotComing">Not Coming</option>
-                              <option value="Completed">Completed</option>
-                            </select>
-                          </td>
-                          <td>
-                            <button 
-                              className="btn-icon" 
-                              onClick={() => window.open(`https://wa.me/${apt.phone}`, '_blank')}
-                              title="WhatsApp"
-                            >
-                              <MessageCircle size={18} />
-                            </button>
-                          </td>
-                          <td className="notes-cell">
-                            {editingNoteId === apt.id ? (
-                              <div className="inline-edit">
-                                <input 
-                                  type="text" 
-                                  value={editingNoteText} 
-                                  onChange={(e) => setEditingNoteText(e.target.value)}
-                                />
-                                <button className="btn-sm" onClick={() => handleNoteEdit(apt.id)}><Save size={14} /></button>
-                                <button className="btn-sm" onClick={() => setEditingNoteId(null)}><XCircle size={14} /></button>
-                              </div>
-                            ) : (
-                              <span onClick={() => { setEditingNoteId(apt.id); setEditingNoteText(apt.notes || ''); }}>
-                                {apt.notes || 'Click to add'}
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            {editingAptId === apt.id ? (
-                              <>
-                                <button 
-                                  className="btn btn-sm btn-primary" 
-                                  onClick={async () => {
-                                    const aptData = appointments.find(a => a.id === apt.id);
-                                    const result = await updateAppointment(apt.id, {
-                                      date: aptData.date,
-                                      time: aptData.time,
-                                      notes: aptData.notes,
-                                      status: aptData.status,
-                                      updatedBy: currentUser.id
-                                    });
-                                    if (result.success) {
-                                      setSuccess('Appointment updated');
-                                      setEditingAptId(null);
-                                      setTimeout(() => setSuccess(null), 2000);
-                                    } else {
-                                      setError(result.error);
-                                    }
-                                  }}
-                                >
-                                  <Save size={14} />
-                                </button>
-                                <button className="btn btn-sm" onClick={() => setEditingAptId(null)}>
-                                  <XCircle size={14} />
-                                </button>
-                              </>
-                            ) : (
-                              <button className="btn btn-sm" onClick={() => setEditingAptId(apt.id)}>
-                                <Edit2 size={14} /> Edit
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <section className="card">
+                <h2 className="card-title"><Calendar size={20} /> Appointments by Date</h2>
+                <div className="calendar-view">
+                  {[...new Set(getVisibleAppointments().map(a => a.displayDate))].sort().map(date => (
+                    <div key={date} className="calendar-date" onClick={() => setSelectedDate(selectedDate === date ? null : date)}>
+                      <div className="date-label">{date}</div>
+                      <div className="date-count">{getAppointmentsForDate(date).length} appts</div>
+
+                      {selectedDate === date && (
+                        <div className="date-appointments">
+                          {getAppointmentsForDate(date).map(apt => (
+                            <div key={apt.id} className="date-apt">
+                              <div>{apt.time} - {apt.patientName}</div>
+                              <div className="text-small">{apt.status}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
-            </section>
+              </section>
+            </>
           )}
 
           {view === 'head-doctor' && activeTab === 'patients' && (
