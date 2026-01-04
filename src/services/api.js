@@ -82,7 +82,14 @@ export async function getAppointments() {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Try to surface server-provided error details to aid debugging
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
     }
 
     const data = await response.json();
@@ -130,7 +137,13 @@ export async function createAppointment(formData) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
     }
 
     const data = await response.json();
@@ -167,7 +180,13 @@ export async function updateAppointment(id, updates) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
     }
 
     const data = await response.json();
@@ -197,7 +216,13 @@ export async function deleteAppointment(id) {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
     }
 
     const data = await response.json();
