@@ -1,9 +1,7 @@
 // API Service for Dr. Janak Appointment System
 
 const IS_PRODUCTION = import.meta.env.PROD;
-// Direct GAS URL - update this after deploying new Code.gs
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxfD1Wp6mPph1qiWxdttqJp4nBbAKP8dK-63rcH9jQORZrCFT6Tn6oiLpnVqLyhUnFs/exec';
-const API_URL = IS_PRODUCTION ? GAS_URL : GAS_URL;
+const API_URL = IS_PRODUCTION ? '/api/proxy' : '/api/proxy';
 
 console.log('API_URL:', API_URL);
 console.log('ENV (PROD):', IS_PRODUCTION);
