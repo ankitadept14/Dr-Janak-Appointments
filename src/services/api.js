@@ -6,6 +6,52 @@ const API_URL = IS_PRODUCTION ? '/api/proxy' : '/api/proxy';
 console.log('API_URL:', API_URL);
 console.log('ENV (PROD):', IS_PRODUCTION);
 
+// Helpers to normalize date/time values coming from Google Sheets/Apps Script
+function formatBackendDate(value) {
+  // Return YYYY-MM-DD
+  if (!value) return '';
+  if (typeof value === 'string') {
+    // Already formatted
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    // If ISO string
+    const iso = Date.parse(value);
+    if (!Number.isNaN(iso)) {
+      const d = new Date(iso);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    }
+  }
+  // Date object
+  if (value instanceof Date) {
+    const mm = String(value.getMonth() + 1).padStart(2, '0');
+    const dd = String(value.getDate()).padStart(2, '0');
+    return `${value.getFullYear()}-${mm}-${dd}`;
+  }
+  return String(value);
+}
+
+function formatDisplayDate(value) {
+  const backend = formatBackendDate(value);
+  return toDisplayDate(backend);
+}
+
+function formatDisplayTime(value) {
+  if (!value) return '';
+  // If it's already HH:MM
+  if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)) return value;
+  // If it's an ISO or Date
+  const parsed = Date.parse(value);
+  if (!Number.isNaN(parsed)) {
+    const d = new Date(parsed);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+  // Fallback
+  return String(value);
+}
+
 /**
  * Date formatting utilities
  */
@@ -99,8 +145,9 @@ export async function getAppointments() {
     if (data.appointments) {
       data.appointments = data.appointments.map(apt => ({
         ...apt,
-        displayDate: toDisplayDate(apt.date),
-        originalDate: apt.date
+        displayDate: formatDisplayDate(apt.date),
+        originalDate: formatBackendDate(apt.date),
+        time: formatDisplayTime(apt.time)
       }));
     }
     
