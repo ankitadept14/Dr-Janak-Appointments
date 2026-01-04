@@ -53,7 +53,9 @@ function App() {
     setLoading(true);
     
     try {
+      console.log('Attempting login with ID:', loginId.value.trim());
       const result = await login(loginId.value.trim(), loginPassword.value);
+      console.log('Login result:', result);
       setLoading(false);
 
       if (result.success && result.user) {
@@ -63,14 +65,16 @@ function App() {
         setSuccess('Logged in successfully!');
         setTimeout(() => setSuccess(null), 3000);
       } else {
-        setError(result.error || 'Invalid login credentials. Please check your ID and password.');
-        setTimeout(() => setError(null), 5000);
+        // Don't auto-dismiss error - user needs to read it
+        const errorMsg = result.error || 'Invalid login credentials. Please check your ID and password.';
+        console.error('Login failed:', errorMsg);
+        setError(errorMsg);
       }
     } catch (err) {
       setLoading(false);
-      setError('Connection error. Please check if Google Sheets backend is deployed and accessible.');
+      const errorMsg = 'Connection error. Please verify: 1) Google Apps Script is deployed 2) Users sheet exists with your credentials';
       console.error('Login error:', err);
-      setTimeout(() => setError(null), 5000);
+      setError(errorMsg);
     }
   };
 
