@@ -1,56 +1,12 @@
 // API Service for Dr. Janak Appointment System
 
 const IS_PRODUCTION = import.meta.env.PROD;
-const API_URL = IS_PRODUCTION ? '/api/proxy' : '/api/proxy';
+// Direct GAS URL - update this after deploying new Code.gs
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxfD1Wp6mPph1qiWxdttqJp4nBbAKP8dK-63rcH9jQORZrCFT6Tn6oiLpnVqLyhUnFs/exec';
+const API_URL = IS_PRODUCTION ? GAS_URL : GAS_URL;
 
 console.log('API_URL:', API_URL);
 console.log('ENV (PROD):', IS_PRODUCTION);
-
-// Helpers to normalize date/time values coming from Google Sheets/Apps Script
-function formatBackendDate(value) {
-  // Return YYYY-MM-DD
-  if (!value) return '';
-  if (typeof value === 'string') {
-    // Already formatted
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-    // If ISO string
-    const iso = Date.parse(value);
-    if (!Number.isNaN(iso)) {
-      const d = new Date(iso);
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${d.getFullYear()}-${mm}-${dd}`;
-    }
-  }
-  // Date object
-  if (value instanceof Date) {
-    const mm = String(value.getMonth() + 1).padStart(2, '0');
-    const dd = String(value.getDate()).padStart(2, '0');
-    return `${value.getFullYear()}-${mm}-${dd}`;
-  }
-  return String(value);
-}
-
-function formatDisplayDate(value) {
-  const backend = formatBackendDate(value);
-  return toDisplayDate(backend);
-}
-
-function formatDisplayTime(value) {
-  if (!value) return '';
-  // If it's already HH:MM
-  if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)) return value;
-  // If it's an ISO or Date
-  const parsed = Date.parse(value);
-  if (!Number.isNaN(parsed)) {
-    const d = new Date(parsed);
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
-  // Fallback
-  return String(value);
-}
 
 /**
  * Date formatting utilities
@@ -94,12 +50,12 @@ export function getTodayBackendDate() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// Generate time slots with 15-minute intervals
+// Generate time slots from 08:00 to 20:00 with 15-minute intervals
 export function generateTimeSlots() {
   const slots = [];
-  for (let hour = 9; hour <= 18; hour++) {
+  for (let hour = 8; hour <= 20; hour++) {
     for (let minute = 0; minute < 60; minute += 15) {
-      if (hour === 18 && minute > 0) break; // Stop at 18:00
+      if (hour === 20 && minute > 0) break; // Stop after 20:00
       const h = String(hour).padStart(2, '0');
       const m = String(minute).padStart(2, '0');
       slots.push(`${h}:${m}`);
@@ -109,14 +65,16 @@ export function generateTimeSlots() {
 }
 
 /**
- * Fetch all appointments
+ * ============ AUTHENTICATION ============
  */
-export async function getAppointments() {
+
+export async function login(id, password) {
   try {
-    console.log('Fetching appointments via proxy...');
-    
     const body = new URLSearchParams({
-      action: 'read'
+      action: 'read',
+      type: 'login',
+      id: id,
+      password: password
     });
 
     const response = await fetch(API_URL, {
@@ -128,7 +86,45 @@ export async function getAppointments() {
     });
 
     if (!response.ok) {
-      // Try to surface server-provided error details to aid debugging
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error logging in:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * ============ APPOINTMENTS ============
+ */
+
+export async function getAppointments() {
+  try {
+    console.log('Fetching appointments via proxy...');
+
+    const body = new URLSearchParams({
+      action: 'read',
+      type: 'appointments'
+    });
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
       const text = await response.text();
       let serverError = text;
       try {
@@ -140,17 +136,16 @@ export async function getAppointments() {
 
     const data = await response.json();
     console.log('✅ Fetched appointments:', data.appointments?.length, 'total');
-    
+
     // Convert dates to display format
     if (data.appointments) {
       data.appointments = data.appointments.map(apt => ({
         ...apt,
-        displayDate: formatDisplayDate(apt.date),
-        originalDate: formatBackendDate(apt.date),
-        time: formatDisplayTime(apt.time)
+        displayDate: toDisplayDate(apt.date),
+        originalDate: apt.date
       }));
     }
-    
+
     return { success: true, appointments: data.appointments || [] };
   } catch (error) {
     console.error('Error fetching appointments:', error);
@@ -158,21 +153,21 @@ export async function getAppointments() {
   }
 }
 
-/**
- * Create a new appointment
- */
 export async function createAppointment(formData) {
   try {
-    // Convert DD-MM-YYYY to YYYY-MM-DD for backend
     const backendDate = toBackendDate(formData.date);
-    
+
     const body = new URLSearchParams({
       action: 'create',
+      type: 'appointment',
       patientName: formData.patientName,
       phone: formData.phone,
       date: backendDate,
       time: formData.time,
-      notes: formData.notes || ''
+      doctor: formData.doctor || '',
+      status: formData.status || 'Scheduled',
+      notes: formData.notes || '',
+      createdBy: formData.createdBy || 'System'
     });
 
     const response = await fetch(API_URL, {
@@ -201,22 +196,21 @@ export async function createAppointment(formData) {
   }
 }
 
-/**
- * Update an appointment (status, notes, check-in, reschedule)
- */
 export async function updateAppointment(id, updates) {
   try {
     const body = new URLSearchParams({
       action: 'update',
+      type: 'appointment',
       id: id
     });
 
-    // Add updates
     if (updates.status) body.append('status', updates.status);
     if (updates.notes !== undefined) body.append('notes', updates.notes);
-    if (updates.checkedIn !== undefined) body.append('checkedIn', updates.checkedIn);
-    if (updates.date) body.append('date', toBackendDate(updates.date));
-    if (updates.time) body.append('time', updates.time);
+    if (updates.date && updates.time) {
+      body.append('date', toBackendDate(updates.date));
+      body.append('time', updates.time);
+    }
+    if (updates.updatedBy) body.append('updatedBy', updates.updatedBy);
 
     const response = await fetch(API_URL, {
       method: 'POST',
@@ -244,13 +238,11 @@ export async function updateAppointment(id, updates) {
   }
 }
 
-/**
- * Delete an appointment
- */
 export async function deleteAppointment(id) {
   try {
     const body = new URLSearchParams({
       action: 'delete',
+      type: 'appointment',
       id: id
     });
 
@@ -276,6 +268,235 @@ export async function deleteAppointment(id) {
     return data;
   } catch (error) {
     console.error('Error deleting appointment:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * ============ PATIENTS ============
+ */
+
+export async function getPatients(search = '') {
+  try {
+    const body = new URLSearchParams({
+      action: 'read',
+      type: 'patients',
+      search: search
+    });
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
+    }
+
+    const data = await response.json();
+    return { success: true, patients: data.patients || [] };
+  } catch (error) {
+    console.error('Error fetching patients:', error);
+    return { success: false, patients: [], error: error.message };
+  }
+}
+
+export async function createPatient(patientData) {
+  try {
+    const body = new URLSearchParams({
+      action: 'create',
+      type: 'patient',
+      name: patientData.name || '',
+      phone: patientData.phone || '',
+      gender: patientData.gender || '',
+      dob: patientData.dob || '',
+      googleDocLink: patientData.googleDocLink || ''
+    });
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error creating patient:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updatePatient(id, updates) {
+  try {
+    const body = new URLSearchParams({
+      action: 'update',
+      type: 'patient',
+      id: id
+    });
+
+    if (updates.name !== undefined) body.append('name', updates.name);
+    if (updates.phone !== undefined) body.append('phone', updates.phone);
+    if (updates.gender !== undefined) body.append('gender', updates.gender);
+    if (updates.dob !== undefined) body.append('dob', updates.dob);
+    if (updates.googleDocLink !== undefined) body.append('googleDocLink', updates.googleDocLink);
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error updating patient:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * ============ DOCTORS ============
+ */
+
+export async function getDoctors() {
+  try {
+    const body = new URLSearchParams({
+      action: 'read',
+      type: 'doctors'
+    });
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
+    }
+
+    const data = await response.json();
+    return { success: true, doctors: data.doctors || [] };
+  } catch (error) {
+    console.error('Error fetching doctors:', error);
+    return { success: false, doctors: [], error: error.message };
+  }
+}
+
+export async function createUser(userData) {
+  try {
+    const body = new URLSearchParams({
+      action: 'create',
+      type: 'user',
+      id: userData.id || '',
+      password: userData.password || '',
+      role: userData.role || 'nurse',
+      doctorName: userData.doctorName || ''
+    });
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error creating user:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateUser(id, updates) {
+  try {
+    const body = new URLSearchParams({
+      action: 'update',
+      type: 'user',
+      id: id
+    });
+
+    if (updates.password !== undefined) body.append('password', updates.password);
+    if (updates.role !== undefined) body.append('role', updates.role);
+    if (updates.doctorName !== undefined) body.append('doctorName', updates.doctorName);
+    if (updates.status !== undefined) body.append('status', updates.status);
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let serverError = text;
+      try {
+        const parsed = JSON.parse(text);
+        serverError = parsed.error || parsed.message || text;
+      } catch (_) {}
+      throw new Error(`HTTP error ${response.status}: ${serverError}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error updating user:', error);
     return { success: false, error: error.message };
   }
 }
