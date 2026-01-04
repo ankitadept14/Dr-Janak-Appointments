@@ -39,6 +39,35 @@ export function getTodayDate() {
   return `${dd}-${mm}-${yyyy}`;
 }
 
+// Get today's date in YYYY-MM-DD format (HTML5 date input)
+export function getTodayDateISO() {
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy = today.getFullYear();
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// Convert YYYY-MM-DD (HTML5) to DD-MM-YYYY (display)
+export function isoToDisplayDate(isoDate) {
+  if (!isoDate) return '';
+  const parts = isoDate.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return isoDate;
+}
+
+// Convert DD-MM-YYYY (display) to YYYY-MM-DD (HTML5)
+export function displayToIsoDate(displayDate) {
+  if (!displayDate) return '';
+  const parts = displayDate.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return displayDate;
+}
+
 // Get today's date in YYYY-MM-DD format for backend
 export function getTodayBackendDate() {
   const today = new Date();

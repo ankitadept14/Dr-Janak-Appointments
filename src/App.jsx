@@ -6,7 +6,8 @@ import {
 import {
   login, getAppointments, createAppointment, updateAppointment, deleteAppointment,
   getPatients, createPatient, updatePatient, getDoctors, createUser, updateUser,
-  getTodayDate, getTodayBackendDate, toDisplayDate, toBackendDate, generateTimeSlots
+  getTodayDate, getTodayDateISO, getTodayBackendDate, toDisplayDate, toBackendDate, 
+  generateTimeSlots, isoToDisplayDate, displayToIsoDate
 } from './services/api';
 import './App.css';
 
@@ -114,11 +115,15 @@ function App() {
   const handlePatientSearch = async (e) => {
     const term = e.target.value;
     setPatientSearchTerm(term);
+    setFormData(prev => ({ ...prev, patientName: term }));
+    
     if (term.length >= 3) {
       const result = await getPatients(term);
       setSearchResults(result.success ? result.patients : []);
+      setShowPatientSearch(true);
     } else {
       setSearchResults([]);
+      setShowPatientSearch(false);
     }
   };
 
@@ -130,8 +135,8 @@ function App() {
       gender: patient.gender,
       dob: patient.dob
     }));
+    setPatientSearchTerm(patient.name);
     setShowPatientSearch(false);
-    setPatientSearchTerm('');
     setSearchResults([]);
   };
 
@@ -345,19 +350,36 @@ function App() {
                       value={patientSearchTerm}
                       onChange={handlePatientSearch}
                       onFocus={() => setShowPatientSearch(true)}
-                      placeholder="Search patient (3+ chars)..."
+                      onBlur={() => setTimeout(() => setShowPatientSearch(false), 200)}
+                      placeholder="Type patient name or phone (min 3 characters)..."
+                      autoComplete="off"
                     />
                     {showPatientSearch && searchResults.length > 0 && (
                       <div className="search-dropdown">
                         {searchResults.map(p => (
                           <div key={p.id} className="search-item" onClick={() => selectPatient(p)}>
-                            {p.name} ({p.phone})
+                            <div className="search-item-name">{p.name}</div>
+                            <div className="search-item-details">
+                              <Phone size={12} /> {p.phone}
+                              {p.age && <span> • Age {p.age}</span>}
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
+                    {showPatientSearch && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
+                      <div className="search-dropdown">
+                        <div className="search-item-empty">
+                          No patients found. Patient will be created automatically.
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {formData.patientName && <p className="selected-patient">{formData.patientName} • {formData.phone}</p>}
+                  {formData.patientName && formData.phone && (
+                    <p className="selected-patient">
+                      <User size={14} /> {formData.patientName} • <Phone size={14} /> {formData.phone}
+                    </p>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -375,7 +397,12 @@ function App() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Date <span className="required">*</span></label>
-                    <input type="text" value={formData.date} onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))} required pattern="\d{2}-\d{2}-\d{4}" placeholder="DD-MM-YYYY" />
+                    <input 
+                      type="date" 
+                      value={displayToIsoDate(formData.date)} 
+                      onChange={(e) => setFormData(prev => ({ ...prev, date: isoToDisplayDate(e.target.value) }))} 
+                      required 
+                    />
                   </div>
                   <div className="form-group">
                     <label>Time <span className="required">*</span></label>
@@ -574,7 +601,20 @@ function App() {
 
           {view === 'head-doctor' && activeTab === 'patients' && (
             <section className="card">
-              <h2 className="card-title"><User size={20} /> Patient Master</h2>
+              <div className="card-header">
+                <h2 className="card-title"><User size={20} /> Patient Master</h2>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => {
+                    setFormData({
+                      patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: ''
+                    });
+                    setActiveTab('add-patient');
+                  }}
+                >
+                  <Plus size={18} /> Add Patient
+                </button>
+              </div>
               <div className="patients-table">
                 {patients.length === 0 ? (
                   <p className="text-muted">No patients</p>
@@ -612,10 +652,230 @@ function App() {
             </section>
           )}
 
+          {view === 'head-doctor' && activeTab === 'add-patient' && (
+            <section className="card">
+              <h2 className="card-title"><User size={20} /> Add New Patient</h2>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!formData.patientName || !formData.phone) {
+                  setError('Patient name and phone are required');
+                  return;
+                }
+                setLoading(true);
+                const result = await createPatient({
+                  name: formData.patientName,
+                  phone: formData.phone,
+                  gender: formData.gender,
+                  dob: formData.dob,
+                  googleDocLink: ''
+                });
+                setLoading(false);
+                if (result.success) {
+                  setSuccess('Patient added successfully!');
+                  resetForm();
+                  await fetchAllData();
+                  setActiveTab('patients');
+                  setTimeout(() => setSuccess(null), 3000);
+                } else {
+                  setError(result.error || 'Failed to add patient');
+                }
+              }} className="appointment-form">
+                <div className="form-group">
+                  <label>Name <span className="required">*</span></label>
+                  <input 
+                    type="text" 
+                    value={formData.patientName} 
+                    onChange={(e) => setFormData(prev => ({ ...prev, patientName: e.target.value }))} 
+                    required 
+                    placeholder="Patient full name"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Phone <span className="required">*</span></label>
+                  <input 
+                    type="tel" 
+                    value={formData.phone} 
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))} 
+                    required 
+                    placeholder="Phone number"
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Gender</label>
+                    <select value={formData.gender} onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}>
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Date of Birth</label>
+                    <input 
+                      type="date" 
+                      value={displayToIsoDate(formData.dob)} 
+                      onChange={(e) => setFormData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))} 
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('patients')}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                    {loading ? 'Adding...' : 'Add Patient'}
+                  </button>
+                </div>
+              </form>
+            </section>
+          )}
+
           {view === 'head-doctor' && activeTab === 'staff' && (
             <section className="card">
-              <h2 className="card-title"><UserCog size={20} /> Manage Staff</h2>
-              <p className="text-muted">Staff management coming soon</p>
+              <div className="card-header">
+                <h2 className="card-title"><UserCog size={20} /> Manage Staff</h2>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => {
+                    setFormData({
+                      patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: ''
+                    });
+                    setActiveTab('add-staff');
+                  }}
+                >
+                  <Plus size={18} /> Add Staff
+                </button>
+              </div>
+              <div className="patients-table">
+                {doctors.length === 0 ? (
+                  <p className="text-muted">No staff members</p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Role</th>
+                        <th>Doctor Name</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {doctors.map(doc => (
+                        <tr key={doc.id}>
+                          <td>{doc.id}</td>
+                          <td>{doc.role}</td>
+                          <td>{doc.doctorName || '-'}</td>
+                          <td>
+                            <span className={`badge ${doc.status === 'active' ? 'badge-arrived' : 'badge-completed'}`}>
+                              {doc.status}
+                            </span>
+                          </td>
+                          <td>
+                            <button 
+                              className="btn btn-secondary btn-sm" 
+                              onClick={async () => {
+                                const newStatus = doc.status === 'active' ? 'inactive' : 'active';
+                                const result = await updateUser(doc.id, { status: newStatus });
+                                if (result.success) {
+                                  setSuccess(`Staff ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
+                                  await fetchAllData();
+                                  setTimeout(() => setSuccess(null), 2000);
+                                } else {
+                                  setError(result.error);
+                                }
+                              }}
+                            >
+                              {doc.status === 'active' ? 'Deactivate' : 'Activate'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </section>
+          )}
+
+          {view === 'head-doctor' && activeTab === 'add-staff' && (
+            <section className="card">
+              <h2 className="card-title"><UserCog size={20} /> Add New Staff</h2>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const staffId = e.target.staffId.value.trim();
+                const staffPassword = e.target.staffPassword.value.trim();
+                const staffRole = e.target.staffRole.value;
+                const staffDoctorName = e.target.staffDoctorName?.value?.trim() || '';
+
+                if (!staffId || !staffPassword || !staffRole) {
+                  setError('ID, password, and role are required');
+                  return;
+                }
+
+                setLoading(true);
+                const result = await createUser({
+                  id: staffId,
+                  password: staffPassword,
+                  role: staffRole,
+                  doctorName: staffDoctorName
+                });
+                setLoading(false);
+
+                if (result.success) {
+                  setSuccess('Staff member added successfully!');
+                  await fetchAllData();
+                  setActiveTab('staff');
+                  setTimeout(() => setSuccess(null), 3000);
+                } else {
+                  setError(result.error || 'Failed to add staff');
+                }
+              }} className="appointment-form">
+                <div className="form-group">
+                  <label>Login ID <span className="required">*</span></label>
+                  <input 
+                    type="text" 
+                    name="staffId"
+                    required 
+                    placeholder="e.g., nurse1, drsmith"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Password <span className="required">*</span></label>
+                  <input 
+                    type="password" 
+                    name="staffPassword"
+                    required 
+                    placeholder="Enter password"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Role <span className="required">*</span></label>
+                  <select name="staffRole" required>
+                    <option value="">Select role</option>
+                    <option value="nurse">Nurse</option>
+                    <option value="doctor">Doctor</option>
+                    <option value="head-doctor">Head Doctor</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Doctor Name (if role is doctor/head-doctor)</label>
+                  <input 
+                    type="text" 
+                    name="staffDoctorName"
+                    placeholder="e.g., Dr. Smith"
+                  />
+                </div>
+                <div className="form-row">
+                  <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('staff')}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={loading}>
+                    {loading ? 'Adding...' : 'Add Staff'}
+                  </button>
+                </div>
+              </form>
             </section>
           )}
 
@@ -641,15 +901,28 @@ function App() {
                       value={patientSearchTerm}
                       onChange={handlePatientSearch}
                       onFocus={() => setShowPatientSearch(true)}
-                      placeholder="Search patient..."
+                      onBlur={() => setTimeout(() => setShowPatientSearch(false), 200)}
+                      placeholder="Type patient name or phone (min 3 characters)..."
+                      autoComplete="off"
                     />
                     {showPatientSearch && searchResults.length > 0 && (
                       <div className="search-dropdown">
                         {searchResults.map(p => (
                           <div key={p.id} className="search-item" onClick={() => selectPatient(p)}>
-                            {p.name} ({p.phone})
+                            <div className="search-item-name">{p.name}</div>
+                            <div className="search-item-details">
+                              <Phone size={12} /> {p.phone}
+                              {p.age && <span> • Age {p.age}</span>}
+                            </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                    {showPatientSearch && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
+                      <div className="search-dropdown">
+                        <div className="search-item-empty">
+                          No patients found. Patient will be created automatically.
+                        </div>
                       </div>
                     )}
                   </div>
@@ -658,7 +931,11 @@ function App() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Date</label>
-                    <input type="text" value={formData.date} onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))} pattern="\d{2}-\d{2}-\d{4}" placeholder="DD-MM-YYYY" />
+                    <input 
+                      type="date" 
+                      value={displayToIsoDate(formData.date)} 
+                      onChange={(e) => setFormData(prev => ({ ...prev, date: isoToDisplayDate(e.target.value) }))} 
+                    />
                   </div>
                   <div className="form-group">
                     <label>Time</label>

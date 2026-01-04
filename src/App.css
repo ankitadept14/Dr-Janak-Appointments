@@ -171,9 +171,44 @@ textarea { resize: vertical; }
   max-height: 220px;
   overflow: auto;
 }
-.search-item { padding: 0.65rem 0.8rem; cursor: pointer; transition: var(--transition); }
+.search-item { 
+  padding: 0.75rem 0.9rem; 
+  cursor: pointer; 
+  transition: var(--transition); 
+  border-bottom: 1px solid #f3f4f6;
+}
+.search-item:last-child { border-bottom: none; }
 .search-item:hover { background: #eef2ff; }
-.selected-patient { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+.search-item-name { 
+  font-weight: 600; 
+  color: var(--text-primary); 
+  margin-bottom: 0.25rem; 
+}
+.search-item-details { 
+  display: flex; 
+  align-items: center; 
+  gap: 0.5rem; 
+  font-size: 0.85rem; 
+  color: var(--muted); 
+}
+.search-item-empty {
+  padding: 0.75rem 0.9rem;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+}
+.selected-patient { 
+  display: flex; 
+  align-items: center; 
+  gap: 0.5rem; 
+  color: var(--muted); 
+  font-size: 0.9rem; 
+  margin-top: 0.5rem; 
+  padding: 0.5rem; 
+  background: #f0fdf4; 
+  border-radius: var(--radius-sm); 
+  border: 1px solid #bbf7d0;
+}
 
 /* Buttons */
 .btn {
