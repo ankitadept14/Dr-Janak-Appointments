@@ -35,20 +35,42 @@ function App() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    
     const { loginId, loginPassword } = e.target.elements;
+    
+    // Validation
+    if (!loginId.value.trim()) {
+      setError('Please enter your login ID');
+      return;
+    }
+    if (!loginPassword.value.trim()) {
+      setError('Please enter your password');
+      return;
+    }
+    
     setLoading(true);
-    const result = await login(loginId.value, loginPassword.value);
-    setLoading(false);
+    
+    try {
+      const result = await login(loginId.value.trim(), loginPassword.value);
+      setLoading(false);
 
-    if (result.success) {
-      setCurrentUser(result.user);
-      setView(result.user.role);
-      await fetchAllData();
-      setSuccess('Logged in successfully!');
-      setTimeout(() => setSuccess(null), 3000);
-    } else {
-      setError(result.error || 'Login failed');
-      setTimeout(() => setError(null), 3000);
+      if (result.success && result.user) {
+        setCurrentUser(result.user);
+        setView(result.user.role);
+        await fetchAllData();
+        setSuccess('Logged in successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(result.error || 'Invalid login credentials. Please check your ID and password.');
+        setTimeout(() => setError(null), 5000);
+      }
+    } catch (err) {
+      setLoading(false);
+      setError('Connection error. Please check if Google Sheets backend is deployed and accessible.');
+      console.error('Login error:', err);
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -236,14 +258,38 @@ function App() {
 
           <form onSubmit={handleLogin} className="login-form">
             <div className="form-group">
-              <label>Login ID</label>
-              <input type="text" name="loginId" required placeholder="Enter your ID" />
+              <label>Login ID <span className="required">*</span></label>
+              <input 
+                type="text" 
+                name="loginId" 
+                required 
+                placeholder="Enter your ID"
+                autoComplete="username"
+                disabled={loading}
+              />
             </div>
             <div className="form-group">
-              <label>Password</label>
-              <input type="password" name="loginPassword" required placeholder="Enter your password" />
+              <label>Password <span className="required">*</span></label>
+              <input 
+                type="password" 
+                name="loginPassword" 
+                required 
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                disabled={loading}
+              />
             </div>
-            {error && <div className="alert alert-error">{error}</div>}
+            {error && (
+              <div className="alert alert-error">
+                {error}
+                <button type="button" onClick={() => setError(null)}>×</button>
+              </div>
+            )}
+            {success && (
+              <div className="alert alert-success">
+                {success}
+              </div>
+            )}
             <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
               {loading ? 'Logging in...' : 'Login'}
             </button>
