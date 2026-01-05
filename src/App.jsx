@@ -140,6 +140,8 @@ function App() {
   const [expandedCalendarDate, setExpandedCalendarDate] = useState(null);
   const [showGenderDob, setShowGenderDob] = useState(false);
   const [showNewPatientFields, setShowNewPatientFields] = useState(false);
+  const [creatingNewPatient, setCreatingNewPatient] = useState(false);
+  const [editingAptData, setEditingAptData] = useState(null);
   const [formData, setFormData] = useState({
     patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: '', googleDocLink: ''
   });
@@ -252,8 +254,9 @@ function App() {
     
     if (term.length >= 3) {
       const result = await getPatients(term);
-      setSearchResults(result.success ? result.patients : []);
-      setShowPatientSearch(true);
+      const resultsArray = result.success ? result.patients : [];
+      setSearchResults(resultsArray);
+      setShowPatientSearch(resultsArray.length > 0);
     } else {
       setSearchResults([]);
       setShowPatientSearch(false);
@@ -265,8 +268,8 @@ function App() {
       ...prev,
       patientName: patient.name,
       phone: patient.phone,
-      gender: patient.gender,
-      dob: patient.dob
+      gender: patient.gender || '',
+      dob: patient.dob || ''
     }));
     setPatientSearchTerm(patient.name);
     setShowPatientSearch(false);
@@ -357,6 +360,29 @@ function App() {
     }
   };
 
+  const handleEditAppointment = async (apt) => {
+    if (!editingAptData) return;
+    
+    const result = await updateAppointment(apt.id, {
+      date: editingAptData.date,
+      time: editingAptData.time,
+      type: editingAptData.type,
+      notes: editingAptData.notes,
+      status: editingAptData.status,
+      updatedBy: currentUser.id
+    });
+    
+    if (result.success) {
+      setSuccess('Appointment updated successfully');
+      setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, ...editingAptData } : a));
+      setEditingAptId(null);
+      setEditingAptData(null);
+      setTimeout(() => setSuccess(null), 2000);
+    } else {
+      setError(result.error);
+    }
+  };
+
   const handleDeleteAppointment = async (id) => {
     if (!confirm('Delete this appointment?')) return;
     const result = await deleteAppointment(id);
@@ -379,6 +405,13 @@ function App() {
       // Instant refresh: append new patient to state
       if (result.patient) {
         setPatients(prev => [...prev, result.patient]);
+        
+        // If creating from book appointment search, auto-fill form and update search results
+        if (creatingNewPatient) {
+          setSearchResults([result.patient]);
+          selectPatient(result.patient);
+          setCreatingNewPatient(false);
+        }
       }
       
       setTimeout(() => setSuccess(null), 3000);
@@ -528,12 +561,104 @@ function App() {
           <button className={`tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => setActiveTab('book')}>
             <Plus size={18} /> Book Appointment
           </button>
+          <button className={`tab ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+            <Calendar size={18} /> Calendar
+          </button>
         </div>
 
         {error && <div className="alert alert-error">{error}<button onClick={() => setError(null)}>×</button></div>}
         {success && <div className="alert alert-success">{success}<button onClick={() => setSuccess(null)}>×</button></div>}
 
         <div className="dashboard-content">
+          {activeTab === 'calendar' && (
+            <section className="card">
+              <div className="calendar-header">
+                <button className="btn-icon" onClick={() => {
+                  if (currentMonth === 0) {
+                    setCurrentMonth(11);
+                    setCurrentYear(currentYear - 1);
+                  } else {
+                    setCurrentMonth(currentMonth - 1);
+                  }
+                }}>
+                  <ChevronLeft size={20} />
+                </button>
+                <h2>{monthNames[currentMonth]} {currentYear}</h2>
+                <button className="btn-icon" onClick={() => {
+                  if (currentMonth === 11) {
+                    setCurrentMonth(0);
+                    setCurrentYear(currentYear + 1);
+                  } else {
+                    setCurrentMonth(currentMonth + 1);
+                  }
+                }}>
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+
+              <div className="calendar-grid">
+                <div className="calendar-weekdays">
+                  <div>Sun</div>
+                  <div>Mon</div>
+                  <div>Tue</div>
+                  <div>Wed</div>
+                  <div>Thu</div>
+                  <div>Fri</div>
+                  <div>Sat</div>
+                </div>
+
+                {calendarGrid.map((week, weekIdx) => (
+                  <div key={weekIdx} className="calendar-week">
+                    {week.map((day, dayIdx) => {
+                      const aptsForDay = day ? getAppointmentsForCalendarDate(day) : [];
+                      const dateKey = day ? `${day}-${currentMonth}-${currentYear}` : `empty-${weekIdx}-${dayIdx}`;
+                      const isExpanded = expandedCalendarDate === dateKey;
+                      
+                      return (
+                        <div 
+                          key={dateKey} 
+                          className={`calendar-day ${!day ? 'empty' : ''} ${isExpanded ? 'expanded' : ''}`}
+                          onClick={() => day && setExpandedCalendarDate(isExpanded ? null : dateKey)}
+                        >
+                          {day && (
+                            <>
+                              <div className="day-number">{day}</div>
+                              <div className="day-count">{aptsForDay.length} appt{aptsForDay.length !== 1 ? 's' : ''}</div>
+                              
+                              {isExpanded && aptsForDay.length > 0 && (
+                                <div className="day-appointments">
+                                  {aptsForDay.map(apt => (
+                                    <div key={apt.id} className="day-apt-item">
+                                      <div className="day-apt-time">{formatTimeDisplay(apt.time)}</div>
+                                      <div className="day-apt-name">{apt.patientName}</div>
+                                      <div className={`day-apt-status status-${apt.status.toLowerCase()}`}>{apt.status}</div>
+                                      {(() => {
+                                        const link = getPatientDocLink(patients, apt.phone, apt.patientName);
+                                        return link ? (
+                                          <button 
+                                            className="btn-icon btn-sm" 
+                                            onClick={(e) => { e.stopPropagation(); window.open(link, '_blank'); }}
+                                            title="View patient history"
+                                          >
+                                            <ExternalLink size={12} />
+                                          </button>
+                                        ) : null;
+                                      })()}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {activeTab === 'book' && (
             <section className="card">
               <h2 className="card-title"><Plus size={20} /> Book Appointment</h2>
@@ -605,13 +730,19 @@ function App() {
                 )}
 
                 {!showGenderDob && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
-                  <button 
-                    type="button" 
-                    className="btn btn-secondary btn-block"
-                    onClick={() => setShowGenderDob(true)}
-                  >
-                    Patient not found? Add details
-                  </button>
+                  <div style={{ padding: '10px', backgroundColor: '#fff3cd', border: '1px solid #ffc107', borderRadius: '4px', marginBottom: '10px' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#856404' }}>No patient found</p>
+                    <button 
+                      type="button" 
+                      className="btn btn-primary btn-block"
+                      onClick={() => {
+                        setShowGenderDob(true);
+                        setCreatingNewPatient(true);
+                      }}
+                    >
+                      <Plus size={16} /> Create New Patient
+                    </button>
+                  </div>
                 )}
 
                 <div className="form-group">
@@ -679,6 +810,7 @@ function App() {
                         <th>Date</th>
                         <th>Time</th>
                         <th>Status</th>
+                        <th>Edit</th>
                         <th>WhatsApp</th>
                         <th>Notes</th>
                       </tr>
@@ -687,19 +819,82 @@ function App() {
                       {appointments.map(apt => (
                         <tr key={apt.id}>
                           <td>{apt.patientName}</td>
-                          <td>{apt.displayDate}</td>
-                          <td>{formatTimeDisplay(apt.time)}</td>
                           <td>
-                            <select 
-                              value={apt.status} 
-                              onChange={(e) => handleStatusChange(apt, e.target.value)}
-                              className="status-select"
-                            >
-                              <option value="Scheduled">Scheduled</option>
-                              <option value="Arrived">Arrived</option>
-                              <option value="NotComing">Not Coming</option>
-                              <option value="Completed">Completed</option>
-                            </select>
+                            {editingAptId === apt.id ? (
+                              <input 
+                                type="date" 
+                                value={displayToIsoDate(editingAptData?.displayDate || apt.displayDate)}
+                                onChange={(e) => {
+                                  const newDate = isoToDisplayDate(e.target.value);
+                                  setEditingAptData(prev => ({ ...prev, displayDate: newDate, date: toBackendDate(newDate) }));
+                                }}
+                              />
+                            ) : apt.displayDate}
+                          </td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <select 
+                                value={editingAptData?.time || apt.time}
+                                onChange={(e) => setEditingAptData(prev => ({ ...prev, time: e.target.value }))}
+                              >
+                                {timeSlots.map(slot => (
+                                  <option key={slot} value={slot}>{slot}</option>
+                                ))}
+                              </select>
+                            ) : formatTimeDisplay(apt.time)}
+                          </td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <select 
+                                value={editingAptData?.status || apt.status}
+                                onChange={(e) => setEditingAptData(prev => ({ ...prev, status: e.target.value }))}
+                              >
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="Arrived">Arrived</option>
+                                <option value="NotComing">Not Coming</option>
+                                <option value="Completed">Completed</option>
+                              </select>
+                            ) : (
+                              <select 
+                                value={apt.status} 
+                                onChange={(e) => handleStatusChange(apt, e.target.value)}
+                                className="status-select"
+                              >
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="Arrived">Arrived</option>
+                                <option value="NotComing">Not Coming</option>
+                                <option value="Completed">Completed</option>
+                              </select>
+                            )}
+                          </td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <div className="inline-edit">
+                                <input 
+                                  type="text" 
+                                  value={editingAptData?.type || apt.type || ''}
+                                  onChange={(e) => setEditingAptData(prev => ({ ...prev, type: e.target.value }))}
+                                  placeholder="Type"
+                                />
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <div className="inline-edit">
+                                <button className="btn-sm" onClick={() => handleEditAppointment(apt)}><Save size={14} /></button>
+                                <button className="btn-sm" onClick={() => { setEditingAptId(null); setEditingAptData(null); }}><XCircle size={14} /></button>
+                              </div>
+                            ) : (
+                              <button 
+                                className="btn btn-sm" 
+                                onClick={() => { setEditingAptId(apt.id); setEditingAptData({ displayDate: apt.displayDate, date: apt.date, time: apt.time, type: apt.type || '', notes: apt.notes || '', status: apt.status }); }}
+                                disabled={apt.status === 'Completed' || apt.status === 'NotComing'}
+                                title={apt.status === 'Completed' || apt.status === 'NotComing' ? 'Cannot edit completed or not coming appointments' : 'Edit appointment'}
+                              >
+                                <Edit2 size={14} /> Edit
+                              </button>
+                            )}
                           </td>
                           <td>
                             <button 
@@ -762,6 +957,12 @@ function App() {
           </button>
           {view === 'head-doctor' && (
             <>
+              <button className={`tab ${activeTab === 'appointments' ? 'active' : ''}`} onClick={() => setActiveTab('appointments')}>
+                <Calendar size={18} /> All Appointments
+              </button>
+              <button className={`tab ${activeTab === 'manage-patients' ? 'active' : ''}`} onClick={() => setActiveTab('manage-patients')}>
+                <User size={18} /> Manage Patients
+              </button>
               <button className={`tab ${activeTab === 'patients' ? 'active' : ''}`} onClick={() => setActiveTab('patients')}>
                 <User size={18} /> Patient Master
               </button>
@@ -998,6 +1199,348 @@ function App() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {view === 'head-doctor' && activeTab === 'appointments' && (
+            <section className="card">
+              <div className="card-header">
+                <h2 className="card-title"><Calendar size={20} /> All Appointments</h2>
+                <button className="btn btn-icon" onClick={() => fetchAllData()} disabled={loading}>
+                  <RefreshCw size={18} className={loading ? 'spinning' : ''} />
+                </button>
+              </div>
+
+              {appointments.length === 0 ? (
+                <div className="empty-state"><Calendar size={48} /> <p>No appointments</p></div>
+              ) : (
+                <div className="appointments-table-wrapper">
+                  <table className="appointments-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>WhatsApp</th>
+                        <th>History</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getVisibleAppointments().map(apt => (
+                        <tr key={apt.id}>
+                          <td>{apt.patientName}</td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <input 
+                                type="date" 
+                                value={displayToIsoDate(editingAptData?.displayDate || apt.displayDate)}
+                                onChange={(e) => {
+                                  const newDate = isoToDisplayDate(e.target.value);
+                                  setEditingAptData(prev => ({ ...prev, displayDate: newDate, date: toBackendDate(newDate) }));
+                                }}
+                              />
+                            ) : (
+                              apt.displayDate
+                            )}
+                          </td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <select 
+                                value={editingAptData?.time || apt.time}
+                                onChange={(e) => setEditingAptData(prev => ({ ...prev, time: e.target.value }))}
+                              >
+                                {timeSlots.map(slot => (
+                                  <option key={slot} value={slot}>{slot}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              formatTimeDisplay(apt.time)
+                            )}
+                          </td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <select 
+                                value={editingAptData?.status || apt.status}
+                                onChange={(e) => setEditingAptData(prev => ({ ...prev, status: e.target.value }))}
+                              >
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="Arrived">Arrived</option>
+                                <option value="NotComing">Not Coming</option>
+                                <option value="Completed">Completed</option>
+                              </select>
+                            ) : (
+                              <select 
+                                value={apt.status} 
+                                onChange={(e) => handleStatusChange(apt, e.target.value)}
+                                className="status-select"
+                              >
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="Arrived">Arrived</option>
+                                <option value="NotComing">Not Coming</option>
+                                <option value="Completed">Completed</option>
+                              </select>
+                            )}
+                          </td>
+                          <td>
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => window.open(`https://wa.me/${apt.phone}`, '_blank')}
+                              title="WhatsApp"
+                            >
+                              <MessageCircle size={18} />
+                            </button>
+                          </td>
+                          <td>
+                            {(() => {
+                              const link = getPatientDocLink(patients, apt.phone, apt.patientName);
+                              return (
+                                <button 
+                                  className="btn-icon" 
+                                  onClick={() => link && window.open(link, '_blank')}
+                                  disabled={!link}
+                                  title={link ? 'Open history' : 'No history link'}
+                                >
+                                  History
+                                </button>
+                              );
+                            })()}
+                          </td>
+                          <td className="notes-cell">
+                            {editingNoteId === apt.id ? (
+                              <div className="inline-edit">
+                                <input 
+                                  type="text" 
+                                  value={editingNoteText} 
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                />
+                                <button className="btn-sm" onClick={() => handleNoteEdit(apt.id)}><Save size={14} /></button>
+                                <button className="btn-sm" onClick={() => setEditingNoteId(null)}><XCircle size={14} /></button>
+                              </div>
+                            ) : (
+                              <span onClick={() => { setEditingNoteId(apt.id); setEditingNoteText(apt.notes || ''); }}>
+                                {apt.notes || 'Click to add'}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {editingAptId === apt.id ? (
+                              <div className="inline-edit">
+                                <button 
+                                  className="btn-sm" 
+                                  onClick={() => handleEditAppointment(apt)}
+                                >
+                                  <Save size={14} />
+                                </button>
+                                <button 
+                                  className="btn-sm" 
+                                  onClick={() => { 
+                                    setEditingAptId(null); 
+                                    setEditingAptData(null); 
+                                  }}
+                                >
+                                  <XCircle size={14} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                className="btn btn-sm" 
+                                onClick={() => { 
+                                  setEditingAptId(apt.id); 
+                                  setEditingAptData({ 
+                                    displayDate: apt.displayDate, 
+                                    date: apt.date, 
+                                    time: apt.time, 
+                                    type: apt.type || '', 
+                                    notes: apt.notes || '', 
+                                    status: apt.status 
+                                  }); 
+                                }}
+                              >
+                                <Edit2 size={14} /> Edit
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {view === 'head-doctor' && activeTab === 'manage-patients' && (
+            <section className="card">
+              <div className="card-header">
+                <h2 className="card-title"><User size={20} /> Manage Patients</h2>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => {
+                    setEditingPatientId('new');
+                    setEditingPatientData({
+                      name: '',
+                      phone: '',
+                      dob: '',
+                      googleDocLink: ''
+                    });
+                  }}
+                >
+                  <Plus size={18} /> Add Patient
+                </button>
+              </div>
+              <div className="patients-table">
+                {editingPatientId === 'new' && (
+                  <div className="card" style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #e0e0e0' }}>
+                    <h3 style={{ marginTop: 0 }}>Add New Patient</h3>
+                    <div className="form-group">
+                      <label>Name <span className="required">*</span></label>
+                      <input
+                        type="text"
+                        value={editingPatientData?.name || ''}
+                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Patient full name"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Phone <span className="required">*</span></label>
+                      <input
+                        type="tel"
+                        value={editingPatientData?.phone || ''}
+                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, phone: e.target.value }))}
+                        placeholder="Phone number"
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Date of Birth</label>
+                      <input
+                        type="date"
+                        value={displayToIsoDate(editingPatientData?.dob || '')}
+                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Google Doc Link</label>
+                      <input
+                        type="url"
+                        value={editingPatientData?.googleDocLink || ''}
+                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, googleDocLink: e.target.value }))}
+                        placeholder="https://docs.google.com/..."
+                      />
+                    </div>
+                    <div className="inline-edit" style={{ marginTop: '10px' }}>
+                      <button 
+                        className="btn btn-sm btn-primary" 
+                        onClick={async () => {
+                          if (!editingPatientData.name || !editingPatientData.phone) {
+                            setError('Name and phone are required');
+                            return;
+                          }
+                          const success = await handleCreatePatient(editingPatientData);
+                          if (success) {
+                            setEditingPatientId(null);
+                            setEditingPatientData(null);
+                            await fetchAllData();
+                          }
+                        }}
+                      >
+                        <Save size={14} /> Save
+                      </button>
+                      <button 
+                        className="btn btn-sm" 
+                        onClick={() => {
+                          setEditingPatientId(null);
+                          setEditingPatientData(null);
+                        }}
+                      >
+                        <XCircle size={14} /> Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {patients.length === 0 ? (
+                  <p className="text-muted">No patients</p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>DOB</th>
+                        <th>Age</th>
+                        <th>Google Doc Link</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {patients.map(p => (
+                        <tr key={p.id}>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <input
+                                type="text"
+                                value={editingPatientData?.name || ''}
+                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, name: e.target.value }))}
+                                required
+                              />
+                            ) : p.name}
+                          </td>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <input
+                                type="tel"
+                                value={editingPatientData?.phone || ''}
+                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, phone: e.target.value }))}
+                                required
+                              />
+                            ) : p.phone}
+                          </td>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <input
+                                type="date"
+                                value={displayToIsoDate(editingPatientData?.dob || '')}
+                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))}
+                              />
+                            ) : p.dob || '-'}
+                          </td>
+                          <td>{p.age || calculateAge(p.dob) || '-'}</td>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <input
+                                type="url"
+                                value={editingPatientData?.googleDocLink || ''}
+                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, googleDocLink: e.target.value }))}
+                                placeholder="https://docs.google.com/..."
+                              />
+                            ) : (
+                              p.googleDocLink ? (
+                                <a href={p.googleDocLink} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} /></a>
+                              ) : '-'
+                            )}
+                          </td>
+                          <td>
+                            {editingPatientId === p.id ? (
+                              <div className="inline-edit">
+                                <button className="btn-sm" onClick={() => handleUpdatePatient(p.id, editingPatientData)}><Save size={14} /></button>
+                                <button className="btn-sm" onClick={() => { setEditingPatientId(null); setEditingPatientData(null); }}><XCircle size={14} /></button>
+                              </div>
+                            ) : (
+                              <button className="btn-icon" onClick={() => { setEditingPatientId(p.id); setEditingPatientData(p); }} title="Edit patient">
+                                <Edit2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </section>
           )}
@@ -1430,7 +1973,19 @@ function App() {
                     {showPatientSearch && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
                       <div className="search-dropdown">
                         <div className="search-item-empty">
-                          No patients found. Fill in details below to create new patient.
+                          <p style={{ marginBottom: '10px' }}>No patient found</p>
+                          <button 
+                            type="button" 
+                            className="btn btn-primary btn-sm" 
+                            onClick={() => {
+                              setShowNewPatientFields(true);
+                              setCreatingNewPatient(true);
+                              setShowPatientSearch(false);
+                            }}
+                            style={{ width: '100%' }}
+                          >
+                            <Plus size={14} /> Create New Patient
+                          </button>
                         </div>
                       </div>
                     )}
@@ -1449,7 +2004,8 @@ function App() {
                 </div>
 
                 {showNewPatientFields && (
-                  <>
+                  <div style={{ padding: '15px', backgroundColor: '#f0f8ff', border: '1px solid #87ceeb', borderRadius: '4px', marginBottom: '10px' }}>
+                    <h4 style={{ marginTop: 0 }}>Create New Patient</h4>
                     <div className="form-row">
                       <div className="form-group">
                         <label>Gender</label>
@@ -1478,7 +2034,30 @@ function App() {
                         placeholder="https://docs.google.com/..."
                       />
                     </div>
-                  </>
+                    <button 
+                      type="button" 
+                      className="btn btn-primary btn-block" 
+                      onClick={async () => {
+                        if (!formData.patientName || !formData.phone) {
+                          setError('Patient name and phone are required');
+                          return;
+                        }
+                        const success = await handleCreatePatient({
+                          name: formData.patientName,
+                          phone: formData.phone,
+                          gender: formData.gender,
+                          dob: formData.dob,
+                          googleDocLink: formData.googleDocLink || ''
+                        });
+                        if (success) {
+                          setShowNewPatientFields(false);
+                          setCreatingNewPatient(false);
+                        }
+                      }}
+                    >
+                      <Save size={16} /> Create Patient & Continue
+                    </button>
+                  </div>
                 )}
 
                 <div className="form-row">
