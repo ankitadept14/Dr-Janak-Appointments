@@ -679,7 +679,7 @@ function readDoctors(ss, params, e) {
   const headers = data[0];
   const rows = data.slice(1);
 
-  // Filter for doctors and head-doctors
+  // Return all users (doctors, head-doctors, and nurses)
   const doctors = rows
     .map((row, idx) => {
       const obj = {};
@@ -688,7 +688,7 @@ function readDoctors(ss, params, e) {
       });
       return obj;
     })
-    .filter(u => (u.role === 'doctor' || u.role === 'head-doctor') && u.id && u.id !== '');
+    .filter(u => u.id && u.id !== '');
 
   return createResponse({
     success: true,

@@ -142,6 +142,8 @@ function App() {
   const [showNewPatientFields, setShowNewPatientFields] = useState(false);
   const [creatingNewPatient, setCreatingNewPatient] = useState(false);
   const [editingAptData, setEditingAptData] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [modalType, setModalType] = useState(null); // 'appointment', 'patient'
   const [formData, setFormData] = useState({
     patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: '', googleDocLink: ''
   });
@@ -157,10 +159,8 @@ function App() {
       fetchAllData();
       
       // Set default tab based on role
-      if (savedUser.role === 'doctor' || savedUser.role === 'head-doctor') {
+      if (savedUser.role === 'doctor' || savedUser.role === 'head-doctor' || savedUser.role === 'nurse') {
         setActiveTab('calendar');
-      } else if (savedUser.role === 'nurse') {
-        setActiveTab('view');
       }
     }
   }, []);
@@ -194,10 +194,8 @@ function App() {
         await fetchAllData();
         
         // Set default tab based on role
-        if (result.user.role === 'doctor' || result.user.role === 'head-doctor') {
+        if (result.user.role === 'doctor' || result.user.role === 'head-doctor' || result.user.role === 'nurse') {
           setActiveTab('calendar');
-        } else if (result.user.role === 'nurse') {
-          setActiveTab('view');
         }
         
         setSuccess('Logged in successfully!');
@@ -555,14 +553,14 @@ function App() {
         </header>
 
         <div className="tabs">
+          <button className={`tab ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+            <Calendar size={18} /> Calendar
+          </button>
           <button className={`tab ${activeTab === 'view' ? 'active' : ''}`} onClick={() => setActiveTab('view')}>
             <Calendar size={18} /> View Appointments
           </button>
           <button className={`tab ${activeTab === 'book' ? 'active' : ''}`} onClick={() => setActiveTab('book')}>
             <Plus size={18} /> Book Appointment
-          </button>
-          <button className={`tab ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
-            <Calendar size={18} /> Calendar
           </button>
         </div>
 
@@ -810,9 +808,9 @@ function App() {
                         <th>Date</th>
                         <th>Time</th>
                         <th>Status</th>
-                        <th>Edit</th>
                         <th>WhatsApp</th>
                         <th>Notes</th>
+                        <th>Edit</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -868,35 +866,6 @@ function App() {
                             )}
                           </td>
                           <td>
-                            {editingAptId === apt.id ? (
-                              <div className="inline-edit">
-                                <input 
-                                  type="text" 
-                                  value={editingAptData?.type || apt.type || ''}
-                                  onChange={(e) => setEditingAptData(prev => ({ ...prev, type: e.target.value }))}
-                                  placeholder="Type"
-                                />
-                              </div>
-                            ) : null}
-                          </td>
-                          <td>
-                            {editingAptId === apt.id ? (
-                              <div className="inline-edit">
-                                <button className="btn-sm" onClick={() => handleEditAppointment(apt)}><Save size={14} /></button>
-                                <button className="btn-sm" onClick={() => { setEditingAptId(null); setEditingAptData(null); }}><XCircle size={14} /></button>
-                              </div>
-                            ) : (
-                              <button 
-                                className="btn btn-sm" 
-                                onClick={() => { setEditingAptId(apt.id); setEditingAptData({ displayDate: apt.displayDate, date: apt.date, time: apt.time, type: apt.type || '', notes: apt.notes || '', status: apt.status }); }}
-                                disabled={apt.status === 'Completed' || apt.status === 'NotComing'}
-                                title={apt.status === 'Completed' || apt.status === 'NotComing' ? 'Cannot edit completed or not coming appointments' : 'Edit appointment'}
-                              >
-                                <Edit2 size={14} /> Edit
-                              </button>
-                            )}
-                          </td>
-                          <td>
                             <button 
                               className="btn-icon" 
                               onClick={() => window.open(`https://wa.me/${apt.phone}`, '_blank')}
@@ -922,6 +891,28 @@ function App() {
                               </span>
                             )}
                           </td>
+                          <td>
+                            <button 
+                              className="btn btn-sm" 
+                              onClick={() => { 
+                                setEditingAptId(apt.id); 
+                                setEditingAptData({ 
+                                  displayDate: apt.displayDate, 
+                                  date: apt.date, 
+                                  time: apt.time, 
+                                  type: apt.type || '', 
+                                  notes: apt.notes || '', 
+                                  status: apt.status 
+                                }); 
+                                setModalType('appointment');
+                                setShowEditModal(true);
+                              }}
+                              disabled={apt.status === 'Completed' || apt.status === 'NotComing'}
+                              title={apt.status === 'Completed' || apt.status === 'NotComing' ? 'Cannot edit completed or not coming appointments' : 'Edit appointment'}
+                            >
+                              <Edit2 size={14} /> Edit
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -931,6 +922,95 @@ function App() {
             </section>
           )}
         </div>
+
+        {/* Edit Modal */}
+        {showEditModal && modalType === 'appointment' && (
+          <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3><Edit2 size={20} /> Edit Appointment</h3>
+                <button className="btn-icon" onClick={() => setShowEditModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Date <span className="required">*</span></label>
+                  <input 
+                    type="date" 
+                    value={displayToIsoDate(editingAptData?.displayDate || '')}
+                    onChange={(e) => {
+                      const newDate = isoToDisplayDate(e.target.value);
+                      setEditingAptData(prev => ({ ...prev, displayDate: newDate, date: toBackendDate(newDate) }));
+                    }}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Time <span className="required">*</span></label>
+                  <select 
+                    value={editingAptData?.time || ''}
+                    onChange={(e) => setEditingAptData(prev => ({ ...prev, time: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select time</option>
+                    {timeSlots.map(slot => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select 
+                    value={editingAptData?.status || 'Scheduled'}
+                    onChange={(e) => setEditingAptData(prev => ({ ...prev, status: e.target.value }))}
+                  >
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Arrived">Arrived</option>
+                    <option value="NotComing">Not Coming</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Type</label>
+                  <input 
+                    type="text" 
+                    value={editingAptData?.type || ''}
+                    onChange={(e) => setEditingAptData(prev => ({ ...prev, type: e.target.value }))}
+                    placeholder="Appointment type"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Notes</label>
+                  <textarea 
+                    value={editingAptData?.notes || ''}
+                    onChange={(e) => setEditingAptData(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Additional notes"
+                    rows="3"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => {
+                  setShowEditModal(false);
+                  setEditingAptId(null);
+                  setEditingAptData(null);
+                }}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={async () => {
+                  const apt = appointments.find(a => a.id === editingAptId);
+                  if (apt) {
+                    await handleEditAppointment(apt);
+                    setShowEditModal(false);
+                  }
+                }}>
+                  <Save size={16} /> Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -957,14 +1037,8 @@ function App() {
           </button>
           {view === 'head-doctor' && (
             <>
-              <button className={`tab ${activeTab === 'appointments' ? 'active' : ''}`} onClick={() => setActiveTab('appointments')}>
-                <Calendar size={18} /> All Appointments
-              </button>
               <button className={`tab ${activeTab === 'manage-patients' ? 'active' : ''}`} onClick={() => setActiveTab('manage-patients')}>
                 <User size={18} /> Manage Patients
-              </button>
-              <button className={`tab ${activeTab === 'patients' ? 'active' : ''}`} onClick={() => setActiveTab('patients')}>
-                <User size={18} /> Patient Master
               </button>
               <button className={`tab ${activeTab === 'staff' ? 'active' : ''}`} onClick={() => setActiveTab('staff')}>
                 <UserCog size={18} /> Manage Staff
@@ -1074,7 +1148,27 @@ function App() {
                     <tbody>
                       {getVisibleAppointments().map(apt => (
                         <tr key={apt.id}>
-                          <td>{apt.patientName}</td>
+                          <td>
+                            {apt.patientName}
+                            {view === 'head-doctor' && (
+                              <button 
+                                className="btn-icon" 
+                                style={{ marginLeft: '5px' }}
+                                onClick={() => {
+                                  const patient = patients.find(p => p.phone === apt.phone || p.name.toLowerCase() === apt.patientName.toLowerCase());
+                                  if (patient) {
+                                    setEditingPatientId(patient.id);
+                                    setEditingPatientData(patient);
+                                    setModalType('patient');
+                                    setShowEditModal(true);
+                                  }
+                                }}
+                                title="Edit patient details"
+                              >
+                                <User size={14} />
+                              </button>
+                            )}
+                          </td>
                           <td>
                             {editingAptId === apt.id ? (
                               <input 
@@ -1387,82 +1481,14 @@ function App() {
                       dob: '',
                       googleDocLink: ''
                     });
+                    setModalType('patient');
+                    setShowEditModal(true);
                   }}
                 >
                   <Plus size={18} /> Add Patient
                 </button>
               </div>
               <div className="patients-table">
-                {editingPatientId === 'new' && (
-                  <div className="card" style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #e0e0e0' }}>
-                    <h3 style={{ marginTop: 0 }}>Add New Patient</h3>
-                    <div className="form-group">
-                      <label>Name <span className="required">*</span></label>
-                      <input
-                        type="text"
-                        value={editingPatientData?.name || ''}
-                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Patient full name"
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Phone <span className="required">*</span></label>
-                      <input
-                        type="tel"
-                        value={editingPatientData?.phone || ''}
-                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, phone: e.target.value }))}
-                        placeholder="Phone number"
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Date of Birth</label>
-                      <input
-                        type="date"
-                        value={displayToIsoDate(editingPatientData?.dob || '')}
-                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Google Doc Link</label>
-                      <input
-                        type="url"
-                        value={editingPatientData?.googleDocLink || ''}
-                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, googleDocLink: e.target.value }))}
-                        placeholder="https://docs.google.com/..."
-                      />
-                    </div>
-                    <div className="inline-edit" style={{ marginTop: '10px' }}>
-                      <button 
-                        className="btn btn-sm btn-primary" 
-                        onClick={async () => {
-                          if (!editingPatientData.name || !editingPatientData.phone) {
-                            setError('Name and phone are required');
-                            return;
-                          }
-                          const success = await handleCreatePatient(editingPatientData);
-                          if (success) {
-                            setEditingPatientId(null);
-                            setEditingPatientData(null);
-                            await fetchAllData();
-                          }
-                        }}
-                      >
-                        <Save size={14} /> Save
-                      </button>
-                      <button 
-                        className="btn btn-sm" 
-                        onClick={() => {
-                          setEditingPatientId(null);
-                          setEditingPatientData(null);
-                        }}
-                      >
-                        <XCircle size={14} /> Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
                 {patients.length === 0 ? (
                   <p className="text-muted">No patients</p>
                 ) : (
@@ -1480,61 +1506,24 @@ function App() {
                     <tbody>
                       {patients.map(p => (
                         <tr key={p.id}>
-                          <td>
-                            {editingPatientId === p.id ? (
-                              <input
-                                type="text"
-                                value={editingPatientData?.name || ''}
-                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, name: e.target.value }))}
-                                required
-                              />
-                            ) : p.name}
-                          </td>
-                          <td>
-                            {editingPatientId === p.id ? (
-                              <input
-                                type="tel"
-                                value={editingPatientData?.phone || ''}
-                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, phone: e.target.value }))}
-                                required
-                              />
-                            ) : p.phone}
-                          </td>
-                          <td>
-                            {editingPatientId === p.id ? (
-                              <input
-                                type="date"
-                                value={displayToIsoDate(editingPatientData?.dob || '')}
-                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))}
-                              />
-                            ) : p.dob || '-'}
-                          </td>
+                          <td>{p.name}</td>
+                          <td>{p.phone}</td>
+                          <td>{p.dob || '-'}</td>
                           <td>{p.age || calculateAge(p.dob) || '-'}</td>
                           <td>
-                            {editingPatientId === p.id ? (
-                              <input
-                                type="url"
-                                value={editingPatientData?.googleDocLink || ''}
-                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, googleDocLink: e.target.value }))}
-                                placeholder="https://docs.google.com/..."
-                              />
-                            ) : (
-                              p.googleDocLink ? (
-                                <a href={p.googleDocLink} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} /></a>
-                              ) : '-'
-                            )}
+                            {p.googleDocLink ? (
+                              <a href={p.googleDocLink} target="_blank" rel="noopener noreferrer"><ExternalLink size={16} /></a>
+                            ) : '-'}
                           </td>
                           <td>
-                            {editingPatientId === p.id ? (
-                              <div className="inline-edit">
-                                <button className="btn-sm" onClick={() => handleUpdatePatient(p.id, editingPatientData)}><Save size={14} /></button>
-                                <button className="btn-sm" onClick={() => { setEditingPatientId(null); setEditingPatientData(null); }}><XCircle size={14} /></button>
-                              </div>
-                            ) : (
-                              <button className="btn-icon" onClick={() => { setEditingPatientId(p.id); setEditingPatientData(p); }} title="Edit patient">
-                                <Edit2 size={16} />
-                              </button>
-                            )}
+                            <button className="btn-icon" onClick={() => { 
+                              setEditingPatientId(p.id); 
+                              setEditingPatientData(p); 
+                              setModalType('patient');
+                              setShowEditModal(true);
+                            }} title="Edit patient">
+                              <Edit2 size={16} />
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1545,186 +1534,7 @@ function App() {
             </section>
           )}
 
-          {view === 'head-doctor' && activeTab === 'patients' && (
-            <section className="card">
-              <div className="card-header">
-                <h2 className="card-title"><User size={20} /> Patient Master</h2>
-                <button 
-                  className="btn btn-primary" 
-                  onClick={() => {
-                    setFormData({
-                      patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: ''
-                    });
-                    setActiveTab('add-patient');
-                  }}
-                >
-                  <Plus size={18} /> Add Patient
-                </button>
-              </div>
-              <div className="patients-table">
-                {patients.length === 0 ? (
-                  <p className="text-muted">No patients</p>
-                ) : (
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Phone</th>
-                        <th>Age</th>
-                        <th>Last Appt</th>
-                        <th>Upcoming Appt</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {patients.map(p => (
-                        <tr key={p.id}>
-                          <td>
-                            {editingPatientId === p.id ? (
-                              <input
-                                type="text"
-                                value={editingPatientData?.name || ''}
-                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, name: e.target.value }))}
-                                required
-                              />
-                            ) : p.name}
-                          </td>
-                          <td>
-                            {editingPatientId === p.id ? (
-                              <input
-                                type="tel"
-                                value={editingPatientData?.phone || ''}
-                                onChange={(e) => setEditingPatientData(prev => ({ ...prev, phone: e.target.value }))}
-                                required
-                              />
-                            ) : p.phone}
-                          </td>
-                          <td>
-                            {editingPatientId === p.id ? (
-                              <input
-                                type="date"
-                                value={displayToIsoDate(editingPatientData?.dob || '')}
-                                onChange={(e) => {
-                                  const newDob = isoToDisplayDate(e.target.value);
-                                  setEditingPatientData(prev => ({ ...prev, dob: newDob, age: calculateAge(newDob) }));
-                                }}
-                              />
-                            ) : (p.age || calculateAge(p.dob))}
-                          </td>
-                          <td>{p.lastAppointment || '-'}</td>
-                          <td>{p.upcomingAppointment || '-'}</td>
-                          <td>
-                            {editingPatientId === p.id ? (
-                              <div className="inline-edit">
-                                <input
-                                  type="url"
-                                  value={editingPatientData?.googleDocLink || ''}
-                                  onChange={(e) => setEditingPatientData(prev => ({ ...prev, googleDocLink: e.target.value }))}
-                                  placeholder="Google Doc link"
-                                />
-                                <button className="btn-sm" onClick={() => handleUpdatePatient(p.id, editingPatientData)}><Save size={14} /></button>
-                                <button className="btn-sm" onClick={() => { setEditingPatientId(null); setEditingPatientData(null); }}><XCircle size={14} /></button>
-                              </div>
-                            ) : (
-                              <div className="inline-edit">
-                                {p.googleDocLink ? (
-                                  <button className="btn-link-inline" onClick={() => window.open(p.googleDocLink, '_blank')}>History</button>
-                                ) : (
-                                  <span className="text-muted">No link</span>
-                                )}
-                                <button className="btn-icon" onClick={() => { setEditingPatientId(p.id); setEditingPatientData(p); }} title="Edit patient">
-                                  <Edit2 size={16} />
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </section>
-          )}
 
-          {view === 'head-doctor' && activeTab === 'add-patient' && (
-            <section className="card">
-              <h2 className="card-title"><User size={20} /> Add New Patient</h2>
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                if (!formData.patientName || !formData.phone) {
-                  setError('Patient name and phone are required');
-                  return;
-                }
-                setLoading(true);
-                const result = await createPatient({
-                  name: formData.patientName,
-                  phone: formData.phone,
-                  gender: formData.gender,
-                  dob: formData.dob,
-                  googleDocLink: ''
-                });
-                setLoading(false);
-                if (result.success) {
-                  setSuccess('Patient added successfully!');
-                  resetForm();
-                  await fetchAllData();
-                  setActiveTab('patients');
-                  setTimeout(() => setSuccess(null), 3000);
-                } else {
-                  setError(result.error || 'Failed to add patient');
-                }
-              }} className="appointment-form">
-                <div className="form-group">
-                  <label>Name <span className="required">*</span></label>
-                  <input 
-                    type="text" 
-                    value={formData.patientName} 
-                    onChange={(e) => setFormData(prev => ({ ...prev, patientName: e.target.value }))} 
-                    required 
-                    placeholder="Patient full name"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Phone <span className="required">*</span></label>
-                  <input 
-                    type="tel" 
-                    value={formData.phone} 
-                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))} 
-                    required 
-                    placeholder="Phone number"
-                  />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Gender</label>
-                    <select value={formData.gender} onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}>
-                      <option value="">Select gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Date of Birth</label>
-                    <input 
-                      type="date" 
-                      value={displayToIsoDate(formData.dob)} 
-                      onChange={(e) => setFormData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))} 
-                    />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('patients')}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={loading}>
-                    {loading ? 'Adding...' : 'Add Patient'}
-                  </button>
-                </div>
-              </form>
-            </section>
-          )}
 
           {view === 'head-doctor' && activeTab === 'staff' && (
             <section className="card">
@@ -2088,6 +1898,138 @@ function App() {
             </section>
           )}
         </div>
+
+        {/* Patient Edit Modal */}
+        {showEditModal && modalType === 'patient' && (
+          <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3><User size={20} /> {editingPatientId === 'new' ? 'Add New Patient' : 'Edit Patient'}</h3>
+                <button className="btn-icon" onClick={() => setShowEditModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Name <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    value={editingPatientData?.name || ''}
+                    onChange={(e) => setEditingPatientData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Patient full name"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Phone <span className="required">*</span></label>
+                  <input
+                    type="tel"
+                    value={editingPatientData?.phone || ''}
+                    onChange={(e) => setEditingPatientData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="Phone number"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date of Birth</label>
+                  <input
+                    type="date"
+                    value={displayToIsoDate(editingPatientData?.dob || '')}
+                    onChange={(e) => setEditingPatientData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Google Doc Link</label>
+                  <input
+                    type="url"
+                    value={editingPatientData?.googleDocLink || ''}
+                    onChange={(e) => setEditingPatientData(prev => ({ ...prev, googleDocLink: e.target.value }))}
+                    placeholder="https://docs.google.com/..."
+                  />
+                </div>
+                
+                {editingPatientId && editingPatientId !== 'new' && (
+                  <div style={{ marginTop: '20px', borderTop: '1px solid #e0e0e0', paddingTop: '15px' }}>
+                    <h4>Appointment History</h4>
+                    {(() => {
+                      const patientApts = appointments.filter(a => 
+                        a.phone === editingPatientData?.phone || 
+                        a.patientName.toLowerCase() === editingPatientData?.name?.toLowerCase()
+                      ).sort((a, b) => {
+                        const dateCompare = b.date.localeCompare(a.date);
+                        if (dateCompare !== 0) return dateCompare;
+                        return formatTimeDisplay(b.time).localeCompare(formatTimeDisplay(a.time));
+                      });
+                      
+                      if (patientApts.length === 0) {
+                        return <p className="text-muted">No appointments found</p>;
+                      }
+                      
+                      return (
+                        <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                          <table className="appointments-table" style={{ fontSize: '0.9em' }}>
+                            <thead>
+                              <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Doctor</th>
+                                <th>Status</th>
+                                <th>Notes</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patientApts.map(apt => (
+                                <tr key={apt.id}>
+                                  <td>{apt.displayDate}</td>
+                                  <td>{formatTimeDisplay(apt.time)}</td>
+                                  <td>{apt.doctor || '-'}</td>
+                                  <td><span className={`badge badge-${apt.status.toLowerCase()}`}>{apt.status}</span></td>
+                                  <td>{apt.notes || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => {
+                  setShowEditModal(false);
+                  setEditingPatientId(null);
+                  setEditingPatientData(null);
+                }}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" onClick={async () => {
+                  if (!editingPatientData?.name || !editingPatientData?.phone) {
+                    setError('Name and phone are required');
+                    return;
+                  }
+                  
+                  let success = false;
+                  if (editingPatientId === 'new') {
+                    success = await handleCreatePatient(editingPatientData);
+                  } else {
+                    await handleUpdatePatient(editingPatientId, editingPatientData);
+                    success = true;
+                  }
+                  
+                  if (success) {
+                    setShowEditModal(false);
+                    setEditingPatientId(null);
+                    setEditingPatientData(null);
+                    await fetchAllData();
+                  }
+                }}>
+                  <Save size={16} /> {editingPatientId === 'new' ? 'Create Patient' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
