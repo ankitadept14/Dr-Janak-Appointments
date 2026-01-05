@@ -200,6 +200,45 @@ function createAppointment(ss, params, e) {
     return createResponse({ error: 'Appointments sheet not found' }, e);
   }
 
+  // Auto-create patient if they don't exist in Patients sheet
+  const patientsSheet = ss.getSheetByName(PATIENTS_SHEET);
+  if (patientsSheet && params.phone) {
+    const patientData = patientsSheet.getDataRange().getValues();
+    const patientHeaders = patientData[0];
+    const patientPhoneIndex = patientHeaders.indexOf('phone');
+    
+    const patientExists = patientData.slice(1).some(row => row[patientPhoneIndex] === params.phone);
+    
+    if (!patientExists) {
+      // Auto-create patient with available info
+      const maxPatientId = patientData.slice(1).reduce((max, row) => {
+        const id = parseInt(row[0]) || 0;
+        return id > max ? id : max;
+      }, 0);
+      
+      const newPatientId = maxPatientId + 1;
+      const newPatientRow = [
+        newPatientId,
+        params.patientName || '',
+        params.phone || '',
+        '', // gender - will be updated later if provided
+        '', // dob - will be updated later if provided
+        '', // age - will be calculated by formula
+        0, // totalAppointments
+        '', // googleDocLink
+        '', // lastAppointment
+        ''  // upcomingAppointment
+      ];
+      
+      patientsSheet.appendRow(newPatientRow);
+      
+      // Add age formula to the new row
+      const newPatientRowNumber = newPatientId + 1; // +1 for header row
+      const ageColumn = 6; // Column F (age)
+      patientsSheet.getRange(newPatientRowNumber, ageColumn).setFormula('=IF(E' + newPatientRowNumber + '=\"\",\"\",DATEDIF(DATE(RIGHT(E' + newPatientRowNumber + ',4),MID(E' + newPatientRowNumber + ',4,2),LEFT(E' + newPatientRowNumber + ',2)),TODAY(),\"Y\"))');
+    }
+  }
+
   // Validate double-booking
   const allData = sheet.getDataRange().getValues();
   const headers = allData[0];
