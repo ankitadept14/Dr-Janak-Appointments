@@ -361,14 +361,19 @@ function App() {
   const handleEditAppointment = async (apt) => {
     if (!editingAptData) return;
     
-    const result = await updateAppointment(apt.id, {
-      date: editingAptData.date,
-      time: editingAptData.time,
-      type: editingAptData.type,
-      notes: editingAptData.notes,
-      status: editingAptData.status,
+    const updateData = {
       updatedBy: currentUser.id
-    });
+    };
+    
+    // Only include fields that exist in editingAptData
+    if (editingAptData.status !== undefined) updateData.status = editingAptData.status;
+    if (editingAptData.notes !== undefined) updateData.notes = editingAptData.notes;
+    if (editingAptData.date !== undefined && editingAptData.time !== undefined) {
+      updateData.date = editingAptData.date;
+      updateData.time = editingAptData.time;
+    }
+    
+    const result = await updateAppointment(apt.id, updateData);
     
     if (result.success) {
       setSuccess('Appointment updated successfully');
@@ -747,7 +752,7 @@ function App() {
                   <label>Doctor <span className="required">*</span></label>
                   <select value={formData.doctor} onChange={(e) => setFormData(prev => ({ ...prev, doctor: e.target.value }))} required>
                     <option value="">Select doctor</option>
-                    {doctors.filter(d => d.status === 'active').map(doc => (
+                    {doctors.filter(d => d.status === 'active' && (d.role === 'doctor' || d.role === 'head-doctor')).map(doc => (
                       <option key={doc.id} value={doc.doctorName}>
                         {doc.doctorName}
                       </option>
@@ -807,6 +812,7 @@ function App() {
                         <th>Name</th>
                         <th>Date</th>
                         <th>Time</th>
+                        <th>Doctor</th>
                         <th>Status</th>
                         <th>WhatsApp</th>
                         <th>Notes</th>
@@ -841,6 +847,7 @@ function App() {
                               </select>
                             ) : formatTimeDisplay(apt.time)}
                           </td>
+                          <td>{apt.doctor || '-'}</td>
                           <td>
                             {editingAptId === apt.id ? (
                               <select 

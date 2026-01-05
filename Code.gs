@@ -440,7 +440,6 @@ function createPatient(ss, params, e) {
   }, 0);
 
   const newId = maxId + 1;
-  const age = calculateAge(params.dob);
 
   const newRow = [
     newId,
@@ -448,7 +447,7 @@ function createPatient(ss, params, e) {
     params.phone || '',
     params.gender || '',
     params.dob || '',
-    age,
+    '', // age - will be calculated by formula
     0, // totalAppointments
     params.googleDocLink || '',
     '', // lastAppointment
@@ -456,6 +455,11 @@ function createPatient(ss, params, e) {
   ];
 
   sheet.appendRow(newRow);
+  
+  // Copy age formula to the new row (parses DD-MM-YYYY format)
+  const newRowNumber = maxId + 2; // +1 for 0-index, +1 for header row
+  const ageColumn = 6; // Column F (age)
+  sheet.getRange(newRowNumber, ageColumn).setFormula('=IF(E' + newRowNumber + '="","",DATEDIF(DATE(RIGHT(E' + newRowNumber + ',4),MID(E' + newRowNumber + ',4,2),LEFT(E' + newRowNumber + ',2)),TODAY(),"Y"))');
 
   return createResponse({
     success: true,
@@ -465,7 +469,7 @@ function createPatient(ss, params, e) {
       phone: params.phone,
       gender: params.gender,
       dob: params.dob,
-      age: age,
+      age: '',
       totalAppointments: 0,
       googleDocLink: params.googleDocLink || ''
     }
@@ -501,12 +505,7 @@ function updatePatient(ss, params, e) {
     }
   });
 
-  // Recalculate age if DOB changed
-  if (params.dob !== undefined) {
-    const ageColumn = headers.indexOf('age');
-    const newAge = calculateAge(params.dob);
-    sheet.getRange(rowIndex + 1, ageColumn + 1).setValue(newAge);
-  }
+  // Age will be automatically calculated by the formula in the sheet
 
   return createResponse({ success: true, message: 'Patient updated' }, e);
 }
@@ -868,6 +867,12 @@ function initializeSpreadsheet() {
   ];
   patientsSheet.getRange(1, 1, 1, patientHeaders.length).setValues([patientHeaders]);
   patientsSheet.getRange(1, 1, 1, patientHeaders.length).setFontWeight('bold');
+  
+  // Set formula for age column (column F, starting from row 2)
+  // This will auto-calculate age from DOB (DD-MM-YYYY format)
+  patientsSheet.getRange('F2').setFormula('=IF(E2="","",DATEDIF(DATE(RIGHT(E2,4),MID(E2,4,2),LEFT(E2,2)),TODAY(),"Y"))');
+  
+  // Note: When new patients are added, the formula will be automatically copied
 
   // Create Users sheet
   let usersSheet = ss.getSheetByName(USERS_SHEET);
