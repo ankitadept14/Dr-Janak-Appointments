@@ -221,8 +221,8 @@ function createAppointment(ss, params, e) {
         newPatientId,
         params.patientName || '',
         params.phone || '',
-        '', // gender - will be updated later if provided
-        '', // dob - will be updated later if provided
+        params.gender || '', // gender from appointment form
+        params.dob || '', // dob from appointment form
         '', // age - will be calculated by formula
         0, // totalAppointments
         '', // googleDocLink
@@ -236,6 +236,23 @@ function createAppointment(ss, params, e) {
       const newPatientRowNumber = newPatientId + 1; // +1 for header row
       const ageColumn = 6; // Column F (age)
       patientsSheet.getRange(newPatientRowNumber, ageColumn).setFormula('=IF(E' + newPatientRowNumber + '=\"\",\"\",DATEDIF(DATE(RIGHT(E' + newPatientRowNumber + ',4),MID(E' + newPatientRowNumber + ',4,2),LEFT(E' + newPatientRowNumber + ',2)),TODAY(),\"Y\"))');
+    } else if (params.gender || params.dob) {
+      // Update existing patient with gender/dob if provided and not already set
+      const patientRowIndex = patientData.findIndex((row, idx) => idx > 0 && row[patientPhoneIndex] === params.phone);
+      if (patientRowIndex !== -1) {
+        const genderIndex = patientHeaders.indexOf('gender');
+        const dobIndex = patientHeaders.indexOf('dob');
+        
+        // Update gender if provided and current is empty
+        if (params.gender && !patientData[patientRowIndex][genderIndex]) {
+          patientsSheet.getRange(patientRowIndex + 1, genderIndex + 1).setValue(params.gender);
+        }
+        
+        // Update DOB if provided and current is empty
+        if (params.dob && !patientData[patientRowIndex][dobIndex]) {
+          patientsSheet.getRange(patientRowIndex + 1, dobIndex + 1).setValue(params.dob);
+        }
+      }
     }
   }
 

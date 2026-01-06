@@ -311,10 +311,12 @@ function App() {
     const result = await createAppointment({
       patientName: formData.patientName,
       phone: formData.phone,
-      date: formData.date,
+      date: toBackendDate(formData.date),
       time: formData.time,
       doctor: doctorName,
-      notes: formData.notes, // Include notes
+      gender: formData.gender || '',
+      dob: formData.dob || '',
+      notes: formData.notes,
       createdBy: currentUser.id
     });
 
@@ -431,6 +433,7 @@ function App() {
       setSuccess('Patient updated successfully!');
       setPatients(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
       setEditingPatientId(null);
+      await fetchAllData(); // Refresh to update history links
       setTimeout(() => setSuccess(null), 2000);
     } else {
       setError(result.error || 'Failed to update patient');
@@ -708,29 +711,25 @@ function App() {
                   />
                 </div>
 
-                {showGenderDob && (
-                  <>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Gender</label>
-                        <select value={formData.gender} onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}>
-                          <option value="">Select gender</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Date of Birth</label>
-                        <input 
-                          type="date" 
-                          value={displayToIsoDate(formData.dob)} 
-                          onChange={(e) => setFormData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))} 
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Gender</label>
+                    <select value={formData.gender} onChange={(e) => setFormData(prev => ({ ...prev, gender: e.target.value }))}>
+                      <option value="">Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Date of Birth</label>
+                    <input 
+                      type="date" 
+                      value={displayToIsoDate(formData.dob)} 
+                      onChange={(e) => setFormData(prev => ({ ...prev, dob: isoToDisplayDate(e.target.value) }))} 
+                    />
+                  </div>
+                </div>
 
                 {!showGenderDob && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
                   <div style={{ padding: '10px', backgroundColor: '#fff3cd', border: '1px solid #ffc107', borderRadius: '4px', marginBottom: '10px' }}>
@@ -1137,7 +1136,7 @@ function App() {
               </div>
 
               <div style={{ marginTop: '20px' }}>
-                <h3>All Appointments</h3>
+                <h3>{view === 'head-doctor' ? 'My Appointments' : 'All Appointments'}</h3>
                 <div className="appointments-table-wrapper">
                   <table className="appointments-table">
                     <thead>
@@ -1301,6 +1300,57 @@ function App() {
                   </table>
                 </div>
               </div>
+            </section>
+          )}
+
+          {view === 'head-doctor' && activeTab === 'calendar' && (
+            <section className="card" style={{ marginTop: '20px' }}>
+              <div className="card-header">
+                <h2 className="card-title"><Calendar size={20} /> Other Doctors' Appointments</h2>
+              </div>
+
+              {appointments.filter(apt => apt.doctor !== currentUser.doctorName).length === 0 ? (
+                <div className="empty-state"><Calendar size={48} /> <p>No other appointments</p></div>
+              ) : (
+                <div className="appointments-table-wrapper">
+                  <table className="appointments-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Doctor</th>
+                        <th>Status</th>
+                        <th>WhatsApp</th>
+                        <th>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {appointments.filter(apt => apt.doctor !== currentUser.doctorName).map(apt => (
+                        <tr key={apt.id}>
+                          <td>{apt.patientName}</td>
+                          <td>{apt.displayDate}</td>
+                          <td>{formatTimeDisplay(apt.time)}</td>
+                          <td>{apt.doctor}</td>
+                          <td>
+                            <span className={`badge badge-${apt.status.toLowerCase()}`}>{apt.status}</span>
+                          </td>
+                          <td>
+                            <button 
+                              className="btn-icon" 
+                              onClick={() => window.open(`https://wa.me/${apt.phone}`, '_blank')}
+                              title="WhatsApp"
+                            >
+                              <MessageCircle size={18} />
+                            </button>
+                          </td>
+                          <td>{apt.notes || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
           )}
 
