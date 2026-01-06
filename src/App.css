@@ -244,7 +244,10 @@ textarea { resize: vertical; }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn-secondary { background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); }
 .btn-secondary:hover { background: #e5e7eb; }
-.btn-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecdd3; }
+.btn-danger { background: var(--danger); color: white; border: 1px solid var(--danger); }
+.btn-danger:hover { background: #dc2626; }
+.btn-success { background: var(--success); color: white; border: 1px solid var(--success); }
+.btn-success:hover { background: #059669; }
 .btn-sm { padding: 0.45rem 0.75rem; font-size: 0.9rem; }
 .btn-icon { background: none; border: none; padding: 0.45rem; border-radius: var(--radius-sm); cursor: pointer; color: var(--text-secondary); transition: var(--transition); }
 .btn-icon:hover { background: var(--bg-secondary); color: var(--primary); }

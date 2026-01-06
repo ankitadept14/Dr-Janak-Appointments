@@ -223,7 +223,9 @@ export async function createAppointment(formData) {
       doctor: formData.doctor || '',
       status: formData.status || 'Scheduled',
       notes: formData.notes || '',
-      createdBy: formData.createdBy || 'System'
+      createdBy: formData.createdBy || 'System',
+      gender: formData.gender || '',
+      dob: formData.dob || ''
     });
 
     const response = await fetch(API_URL, {

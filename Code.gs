@@ -482,14 +482,55 @@ function createPatient(ss, params, e) {
   const headers = allData[0];
 
   // Check if patient with same phone already exists
-  const existingPatient = allData.slice(1).find(row => row[headers.indexOf('phone')] === params.phone);
-  if (existingPatient) {
+  const phoneIndex = headers.indexOf('phone');
+  const existingPatientRow = allData.slice(1).findIndex(row => row[phoneIndex] === params.phone);
+  
+  if (existingPatientRow !== -1) {
+    // Patient exists - update their information instead of creating duplicate
+    const rowIndex = existingPatientRow + 1; // +1 because we sliced off header
+    const actualRowNumber = rowIndex + 1; // +1 for sheet row number (1-indexed)
+    
+    // Update fields if provided
+    const fieldsToUpdate = {
+      'name': params.name,
+      'gender': params.gender,
+      'dob': params.dob,
+      'googleDocLink': params.googleDocLink
+    };
+    
+    Object.keys(fieldsToUpdate).forEach(field => {
+      if (fieldsToUpdate[field]) {
+        const colIndex = headers.indexOf(field);
+        if (colIndex !== -1) {
+          // Only update if current value is empty or new value is provided
+          const currentValue = allData[rowIndex][colIndex];
+          if (!currentValue || fieldsToUpdate[field]) {
+            sheet.getRange(actualRowNumber, colIndex + 1).setValue(fieldsToUpdate[field]);
+          }
+        }
+      }
+    });
+    
+    // Return the existing patient ID
+    const existingId = allData[rowIndex][headers.indexOf('id')];
+    
     return createResponse({
-      success: false,
-      error: 'Patient with this phone number already exists'
+      success: true,
+      patient: {
+        id: existingId,
+        name: params.name,
+        phone: params.phone,
+        gender: params.gender,
+        dob: params.dob,
+        age: '',
+        totalAppointments: allData[rowIndex][headers.indexOf('totalAppointments')] || 0,
+        googleDocLink: params.googleDocLink || ''
+      },
+      message: 'Patient already exists - information updated'
     }, e);
   }
 
+  // Patient doesn't exist - create new
   const maxId = allData.slice(1).reduce((max, row) => {
     const id = parseInt(row[0]) || 0;
     return id > max ? id : max;

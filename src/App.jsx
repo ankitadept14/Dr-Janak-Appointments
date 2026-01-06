@@ -477,6 +477,9 @@ function App() {
     let filtered = appointments;
     if (currentUser.role === 'doctor') {
       filtered = filtered.filter(apt => apt.doctor === currentUser.doctorName);
+    } else if (currentUser.role === 'head-doctor') {
+      // Head doctor sees only their own appointments in main view
+      filtered = filtered.filter(apt => apt.doctor === currentUser.doctorName);
     }
     return filtered;
   };
@@ -1156,7 +1159,7 @@ function App() {
                         <tr key={apt.id}>
                           <td>
                             {apt.patientName}
-                            {view === 'head-doctor' && (
+                            {(view === 'head-doctor' || view === 'doctor') && (
                               <button 
                                 className="btn-icon" 
                                 style={{ marginLeft: '5px' }}
@@ -1535,6 +1538,7 @@ function App() {
                     setEditingPatientData({
                       name: '',
                       phone: '',
+                      gender: '',
                       dob: '',
                       googleDocLink: ''
                     });
@@ -1554,6 +1558,7 @@ function App() {
                       <tr>
                         <th>Name</th>
                         <th>Phone</th>
+                        <th>Gender</th>
                         <th>DOB</th>
                         <th>Age</th>
                         <th>Google Doc Link</th>
@@ -1565,6 +1570,7 @@ function App() {
                         <tr key={p.id}>
                           <td>{p.name}</td>
                           <td>{p.phone}</td>
+                          <td>{p.gender || '-'}</td>
                           <td>{p.dob || '-'}</td>
                           <td>{p.age || calculateAge(p.dob) || '-'}</td>
                           <td>
@@ -1662,23 +1668,24 @@ function App() {
                                 <button className="btn btn-sm" onClick={() => { setEditingStaffId(doc.id); setEditingStaffData(doc); }}>
                                   <Edit2 size={14} /> Edit
                                 </button>
-                                <button 
-                                  className="btn btn-secondary btn-sm" 
-                                  disabled={doc.role === 'head-doctor'}
-                                  onClick={async () => {
-                                    const newStatus = doc.status === 'active' ? 'inactive' : 'active';
-                                    const result = await updateUser(doc.id, { status: newStatus });
-                                    if (result.success) {
-                                      setSuccess(`Staff ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
-                                      await fetchAllData();
-                                      setTimeout(() => setSuccess(null), 2000);
-                                    } else {
-                                      setError(result.error);
-                                    }
-                                  }}
-                                >
-                                  {doc.status === 'active' ? 'Deactivate' : 'Activate'}
-                                </button>
+                                {doc.role !== 'head-doctor' && (
+                                  <button 
+                                    className={`btn btn-sm ${doc.status === 'active' ? 'btn-danger' : 'btn-success'}`}
+                                    onClick={async () => {
+                                      const newStatus = doc.status === 'active' ? 'inactive' : 'active';
+                                      const result = await updateUser(doc.id, { status: newStatus });
+                                      if (result.success) {
+                                        setSuccess(`Staff ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
+                                        await fetchAllData();
+                                        setTimeout(() => setSuccess(null), 2000);
+                                      } else {
+                                        setError(result.error);
+                                      }
+                                    }}
+                                  >
+                                    {doc.status === 'active' ? 'Deactivate' : 'Activate'}
+                                  </button>
+                                )}
                               </>
                             )}
                           </td>
@@ -1986,6 +1993,18 @@ function App() {
                     placeholder="Phone number"
                     required
                   />
+                </div>
+                <div className="form-group">
+                  <label>Gender</label>
+                  <select
+                    value={editingPatientData?.gender || ''}
+                    onChange={(e) => setEditingPatientData(prev => ({ ...prev, gender: e.target.value }))}
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Date of Birth</label>
