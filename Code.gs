@@ -322,7 +322,22 @@ function createAppointment(ss, params, e) {
     ''  // updatedField
   ];
 
+  // Get the column indices for date and time
+  const dateColIndex = headers.indexOf('date');
+  const timeColIndex = headers.indexOf('time');
+
+  // Append the row
   sheet.appendRow(newRow);
+  
+  // Immediately format the date and time cells as TEXT to prevent Google Sheets auto-conversion
+  const newRowNumber = allData.length + 1; // +1 for the appended row
+  
+  if (dateColIndex !== -1) {
+    sheet.getRange(newRowNumber, dateColIndex + 1).setNumberFormat('@');
+  }
+  if (timeColIndex !== -1) {
+    sheet.getRange(newRowNumber, timeColIndex + 1).setNumberFormat('@');
+  }
 
   // Update patient's appointment count and last/upcoming
   updatePatientAppointmentMetadata(ss, params.phone, params.date);
@@ -407,6 +422,12 @@ function updateAppointment(ss, params, e) {
 
     const dateColumn = headers.indexOf('date');
     const timeColumn = headers.indexOf('time');
+    
+    // Set format to TEXT BEFORE setting values to prevent Google Sheets auto-conversion
+    sheet.getRange(rowIndex + 1, dateColumn + 1).setNumberFormat('@');
+    sheet.getRange(rowIndex + 1, timeColumn + 1).setNumberFormat('@');
+    
+    // Now set the values
     sheet.getRange(rowIndex + 1, dateColumn + 1).setValue(params.date);
     sheet.getRange(rowIndex + 1, timeColumn + 1).setValue(params.time);
     updates.push('date_time');
