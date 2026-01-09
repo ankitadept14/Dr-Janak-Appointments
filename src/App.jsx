@@ -1786,9 +1786,11 @@ function App() {
                   <label>Doctor (default: you)</label>
                   <select value={formData.doctor} onChange={(e) => setFormData(prev => ({ ...prev, doctor: e.target.value }))}>
                     <option value="">{currentUser.doctorName}</option>
-                    {doctors.filter(d => d.id !== currentUser.id).map(doc => (
-                      <option key={doc.id} value={doc.doctorName}>{doc.doctorName}</option>
-                    ))}
+                    {doctors
+                      .filter(d => d.status === 'active' && (d.role === 'doctor' || d.role === 'head-doctor') && d.id !== currentUser.id)
+                      .map(doc => (
+                        <option key={doc.id} value={doc.doctorName}>{doc.doctorName}</option>
+                      ))}
                   </select>
                 </div>
 

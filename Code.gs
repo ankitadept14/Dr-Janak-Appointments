@@ -185,7 +185,7 @@ function readAppointments(ss, params, e) {
     headers.forEach((header, index) => {
       obj[header] = row[index];
     });
-    return obj;
+    return cleanRowData(obj);
   }).filter(apt => apt.id && apt.id !== '');
 
   return createResponse({
@@ -224,12 +224,17 @@ function createAppointment(ss, params, e) {
       }, 0);
       
       const newPatientId = maxPatientId + 1;
+      
+      // Prepend apostrophe to force text (prevents Google Sheets auto-conversion)
+      const genderValue = params.gender ? "'" + params.gender : '';
+      const dobValue = params.dob ? "'" + params.dob : '';
+      
       const newPatientRow = [
         newPatientId,
         params.patientName || '',
         params.phone || '',
-        params.gender || '', // gender from appointment form
-        params.dob || '', // dob from appointment form
+        genderValue, // gender from appointment form
+        dobValue, // dob from appointment form
         '', // age - will be calculated by formula
         0, // totalAppointments
         '', // googleDocLink
@@ -239,12 +244,6 @@ function createAppointment(ss, params, e) {
       
       patientsSheet.appendRow(newPatientRow);
       const newPatientRowNumber = newPatientId + 1; // +1 for header row
-      
-      // Force gender and DOB columns to be TEXT to prevent Google Sheets auto-conversion
-      const genderCol = patientHeaders.indexOf('gender') + 1;
-      const dobCol = patientHeaders.indexOf('dob') + 1;
-      patientsSheet.getRange(newPatientRowNumber, genderCol).setNumberFormat('@');
-      patientsSheet.getRange(newPatientRowNumber, dobCol).setNumberFormat('@');
       
       // Add age formula to the new row
       const ageColumn = 6; // Column F (age)
@@ -256,18 +255,32 @@ function createAppointment(ss, params, e) {
       const dobIndex = patientHeaders.indexOf('dob');
       
       if (params.gender && !patientData[patientRowIndex][genderIndex]) {
-        // Force text format before setting value
         const genderCol = genderIndex + 1;
-        patientsSheet.getRange(patientRowIndex + 1, genderCol).setNumberFormat('@');
-        patientsSheet.getRange(patientRowIndex + 1, genderCol).setValue(params.gender);
+        const genderValue = "'" + params.gender; // Prepend apostrophe to force text
+        patientsSheet.getRange(patientRowIndex + 1, genderCol).setValue(genderValue);
       }
       
       if (params.dob && !patientData[patientRowIndex][dobIndex]) {
-        // Force text format before setting value
         const dobCol = dobIndex + 1;
-        patientsSheet.getRange(patientRowIndex + 1, dobCol).setNumberFormat('@');
-        patientsSheet.getRange(patientRowIndex + 1, dobCol).setValue(params.dob);
+        const dobValue = "'" + params.dob; // Prepend apostrophe to force text
+        patientsSheet.getRange(patientRowIndex + 1, dobCol).setValue(dobValue);
       }
+    }
+  }
+
+  // Validate that selected doctor is eligible (only doctor/head-doctor can have appointments)
+  const usersSheet = ss.getSheetByName(USERS_SHEET);
+  if (usersSheet && params.doctor) {
+    const uData = usersSheet.getDataRange().getValues();
+    const uHeaders = uData[0];
+    const roleIdx = uHeaders.indexOf('role');
+    const statusIdx = uHeaders.indexOf('status');
+    const docNameIdx = uHeaders.indexOf('doctorName');
+    const isEligible = uData.slice(1).some(row =>
+      row[statusIdx] === 'active' && (row[roleIdx] === 'doctor' || row[roleIdx] === 'head-doctor') && row[docNameIdx] === params.doctor
+    );
+    if (!isEligible) {
+      return createResponse({ success: false, error: 'Selected staff is not eligible for appointments. Please choose a doctor or head-doctor.' }, e);
     }
   }
 
@@ -306,12 +319,16 @@ function createAppointment(ss, params, e) {
   const newId = maxId + 1;
   const now = new Date().toISOString();
 
+  // Prepend apostrophe to date/time to force Google Sheets to treat as text (not auto-convert)
+  const dateValue = params.date ? "'" + params.date : '';
+  const timeValue = params.time ? "'" + params.time : '';
+
   const newRow = [
     newId,
     params.patientName || '',
     params.phone || '',
-    params.date || '',
-    params.time || '',
+    dateValue,
+    timeValue,
     params.doctor || '',
     params.status || 'Scheduled',
     params.notes || '',
@@ -322,22 +339,8 @@ function createAppointment(ss, params, e) {
     ''  // updatedField
   ];
 
-  // Get the column indices for date and time
-  const dateColIndex = headers.indexOf('date');
-  const timeColIndex = headers.indexOf('time');
-
   // Append the row
   sheet.appendRow(newRow);
-  
-  // Immediately format the date and time cells as TEXT to prevent Google Sheets auto-conversion
-  const newRowNumber = allData.length + 1; // +1 for the appended row
-  
-  if (dateColIndex !== -1) {
-    sheet.getRange(newRowNumber, dateColIndex + 1).setNumberFormat('@');
-  }
-  if (timeColIndex !== -1) {
-    sheet.getRange(newRowNumber, timeColIndex + 1).setNumberFormat('@');
-  }
 
   // Update patient's appointment count and last/upcoming
   updatePatientAppointmentMetadata(ss, params.phone, params.date);
@@ -423,13 +426,12 @@ function updateAppointment(ss, params, e) {
     const dateColumn = headers.indexOf('date');
     const timeColumn = headers.indexOf('time');
     
-    // Set format to TEXT BEFORE setting values to prevent Google Sheets auto-conversion
-    sheet.getRange(rowIndex + 1, dateColumn + 1).setNumberFormat('@');
-    sheet.getRange(rowIndex + 1, timeColumn + 1).setNumberFormat('@');
+    // Prepend apostrophe to force text (prevents Google Sheets auto-conversion)
+    const dateValue = params.date ? "'" + params.date : '';
+    const timeValue = params.time ? "'" + params.time : '';
     
-    // Now set the values
-    sheet.getRange(rowIndex + 1, dateColumn + 1).setValue(params.date);
-    sheet.getRange(rowIndex + 1, timeColumn + 1).setValue(params.time);
+    sheet.getRange(rowIndex + 1, dateColumn + 1).setValue(dateValue);
+    sheet.getRange(rowIndex + 1, timeColumn + 1).setValue(timeValue);
     updates.push('date_time');
   }
 
@@ -489,7 +491,7 @@ function readPatients(ss, params, e) {
     headers.forEach((header, index) => {
       obj[header] = row[index];
     });
-    return obj;
+    return cleanRowData(obj);
   }).filter(p => p.id && p.id !== '');
 
   // If search is provided, filter by name or phone (3+ chars)
@@ -540,12 +542,16 @@ function createPatient(ss, params, e) {
 
   const newId = maxId + 1;
 
+  // Prepend apostrophe to force text (prevents Google Sheets auto-conversion)
+  const genderValue = params.gender ? "'" + params.gender : '';
+  const dobValue = params.dob ? "'" + params.dob : '';
+
   const newRow = [
     newId,
     params.name || '',
     params.phone || '',
-    params.gender || '',
-    params.dob || '',
+    genderValue,
+    dobValue,
     '', // age - will be calculated by formula
     0, // totalAppointments
     params.googleDocLink || '',
@@ -555,12 +561,6 @@ function createPatient(ss, params, e) {
 
   sheet.appendRow(newRow);
   const newRowNumber = newId + 1; // ID + 1 for header row
-  
-  // Force gender and DOB columns to be TEXT to prevent Google Sheets auto-conversion
-  const genderCol = headers.indexOf('gender') + 1;
-  const dobCol = headers.indexOf('dob') + 1;
-  sheet.getRange(newRowNumber, genderCol).setNumberFormat('@'); // @ = Text format
-  sheet.getRange(newRowNumber, dobCol).setNumberFormat('@');
   
   // Copy age formula to the new row (parses DD-MM-YYYY format)
   const ageColumn = 6; // Column F (age)
@@ -605,11 +605,12 @@ function updatePatient(ss, params, e) {
     if (params[field] !== undefined) {
       const colIndex = headers.indexOf(field);
       if (colIndex !== -1) {
-        // Force text format for gender and dob to prevent auto-conversion
-        if (field === 'gender' || field === 'dob') {
-          sheet.getRange(rowIndex + 1, colIndex + 1).setNumberFormat('@');
+        let value = params[field];
+        // Prepend apostrophe to force text for gender and dob
+        if ((field === 'gender' || field === 'dob') && value) {
+          value = "'" + value;
         }
-        sheet.getRange(rowIndex + 1, colIndex + 1).setValue(params[field]);
+        sheet.getRange(rowIndex + 1, colIndex + 1).setValue(value);
       }
     }
   });
@@ -661,7 +662,7 @@ function readUsers(ss, params, e) {
     headers.forEach((header, index) => {
       obj[header] = row[index];
     });
-    return obj;
+    return cleanRowData(obj);
   }).filter(u => u.id && u.id !== '');
 
   return createResponse({
@@ -794,7 +795,7 @@ function readDoctors(ss, params, e) {
       headers.forEach((header, index) => {
         obj[header] = row[index];
       });
-      return obj;
+      return cleanRowData(obj);
     })
     .filter(u => u.id && u.id !== '');
 
@@ -854,6 +855,27 @@ function handleLogin(ss, params, e) {
 /**
  * ============ HELPERS ============
  */
+
+/**
+ * Strip leading apostrophe from values (used to force text format in Google Sheets)
+ */
+function cleanValue(value) {
+  if (typeof value === 'string' && value.startsWith("'")) {
+    return value.substring(1);
+  }
+  return value;
+}
+
+/**
+ * Clean all values in a row object
+ */
+function cleanRowData(obj) {
+  const cleaned = {};
+  Object.keys(obj).forEach(key => {
+    cleaned[key] = cleanValue(obj[key]);
+  });
+  return cleaned;
+}
 
 function calculateAge(dob) {
   if (!dob) return 0;
