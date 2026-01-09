@@ -144,6 +144,7 @@ function App() {
   const [editingAptData, setEditingAptData] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [modalType, setModalType] = useState(null); // 'appointment', 'patient'
+  const [patientInputFocused, setPatientInputFocused] = useState(false);
   const [formData, setFormData] = useState({
     patientName: '', phone: '', date: getTodayDate(), time: '', gender: '', dob: '', notes: '', doctor: '', googleDocLink: ''
   });
@@ -488,7 +489,18 @@ function App() {
     if (!day) return [];
     const dateStr = `${String(day).padStart(2, '0')}-${String(currentMonth + 1).padStart(2, '0')}-${currentYear}`;
     const backendDate = toBackendDate(dateStr);
-    return getVisibleAppointments().filter(apt => apt.date === backendDate);
+    return getVisibleAppointments().filter(apt => {
+      if (!apt || !apt.date) return false;
+      let d = String(apt.date).trim();
+      if (d.startsWith("'")) d = d.slice(1);
+      if (d.includes('T')) d = d.slice(0, 10);
+      // If date looks like DD-MM-YYYY, convert
+      const parts = d.split('-');
+      if (parts.length === 3 && parts[0].length === 2 && parts[2].length === 4) {
+        d = toBackendDate(d);
+      }
+      return d === backendDate;
+    });
   };
 
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -680,14 +692,15 @@ function App() {
                       value={patientSearchTerm}
                       onChange={handlePatientSearch}
                       onFocus={() => {
+                        setPatientInputFocused(true);
                         if (searchResults.length > 0) setShowPatientSearch(true);
                       }}
-                      onBlur={() => setTimeout(() => setShowPatientSearch(false), 200)}
+                      onBlur={() => setTimeout(() => { setPatientInputFocused(false); setShowPatientSearch(false); }, 200)}
                       placeholder="Type patient name (min 3 characters)..."
                       autoComplete="off"
                       required
                     />
-                    {showPatientSearch && searchResults.length > 0 && (
+                    {patientInputFocused && showPatientSearch && searchResults.length > 0 && (
                       <div className="search-dropdown">
                         {searchResults.map(p => (
                           <div key={p.id} className="search-item" onClick={() => selectPatient(p)}>
@@ -1309,7 +1322,7 @@ function App() {
           {view === 'head-doctor' && activeTab === 'calendar' && (
             <section className="card" style={{ marginTop: '20px' }}>
               <div className="card-header">
-                <h2 className="card-title"><Calendar size={20} /> Other Doctors' Appointments</h2>
+                <h2 className="card-title"><Calendar size={20} /> Other Doctor'sAppointments</h2>
               </div>
 
               {appointments.filter(apt => apt.doctor !== currentUser.doctorName).length === 0 ? (
@@ -1808,8 +1821,11 @@ function App() {
                         if (term.length >= 3) {
                           getPatients(term).then(result => {
                             const results = result.success ? result.patients : [];
+                            // Only show dropdown if input is still focused and term hasn't been cleared by selection
                             setSearchResults(results);
-                            setShowPatientSearch(true);
+                            if (document.activeElement === e.target && results.length > 0) {
+                              setShowPatientSearch(true);
+                            }
                             if (results.length === 0) {
                               setShowNewPatientFields(true);
                             } else {
@@ -1823,14 +1839,15 @@ function App() {
                         }
                       }}
                       onFocus={() => {
+                        setPatientInputFocused(true);
                         if (searchResults.length > 0) setShowPatientSearch(true);
                       }}
-                      onBlur={() => setTimeout(() => setShowPatientSearch(false), 200)}
+                      onBlur={() => setTimeout(() => { setPatientInputFocused(false); setShowPatientSearch(false); }, 200)}
                       placeholder="Type patient name or phone (min 3 characters)..."
                       autoComplete="off"
                       required
                     />
-                    {showPatientSearch && searchResults.length > 0 && (
+                    {patientInputFocused && showPatientSearch && searchResults.length > 0 && (
                       <div className="search-dropdown">
                         {searchResults.map(p => (
                           <div key={p.id} className="search-item" onClick={() => {
@@ -1846,7 +1863,7 @@ function App() {
                         ))}
                       </div>
                     )}
-                    {showPatientSearch && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
+                    {patientInputFocused && showPatientSearch && patientSearchTerm.length >= 3 && searchResults.length === 0 && (
                       <div className="search-dropdown">
                         <div className="search-item-empty">
                           <p style={{ marginBottom: '10px' }}>No patient found</p>
