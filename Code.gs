@@ -200,6 +200,10 @@ function createAppointment(ss, params, e) {
     return createResponse({ error: 'Appointments sheet not found' }, e);
   }
 
+  // Ensure columns are text format to prevent Google Sheets auto-conversion
+  ensurePatientSheetTextFormat();
+  ensureAppointmentSheetTextFormat();
+
   // Auto-create patient if they don't exist in Patients sheet
   const patientsSheet = ss.getSheetByName(PATIENTS_SHEET);
   if (patientsSheet && params.phone) {
@@ -207,10 +211,13 @@ function createAppointment(ss, params, e) {
     const patientHeaders = patientData[0];
     const patientPhoneIndex = patientHeaders.indexOf('phone');
     
-    const patientExists = patientData.slice(1).some(row => row[patientPhoneIndex] === params.phone);
+    // Check if patient exists (trim whitespace for comparison)
+    const existingPatientIndex = patientData.slice(1).findIndex(row => 
+      String(row[patientPhoneIndex]).trim() === String(params.phone).trim()
+    );
     
-    if (!patientExists) {
-      // Auto-create patient with available info
+    if (existingPatientIndex === -1) {
+      // Patient doesn't exist - auto-create with available info
       const maxPatientId = patientData.slice(1).reduce((max, row) => {
         const id = parseInt(row[0]) || 0;
         return id > max ? id : max;
@@ -231,27 +238,35 @@ function createAppointment(ss, params, e) {
       ];
       
       patientsSheet.appendRow(newPatientRow);
+      const newPatientRowNumber = newPatientId + 1; // +1 for header row
+      
+      // Force gender and DOB columns to be TEXT to prevent Google Sheets auto-conversion
+      const genderCol = patientHeaders.indexOf('gender') + 1;
+      const dobCol = patientHeaders.indexOf('dob') + 1;
+      patientsSheet.getRange(newPatientRowNumber, genderCol).setNumberFormat('@');
+      patientsSheet.getRange(newPatientRowNumber, dobCol).setNumberFormat('@');
       
       // Add age formula to the new row
-      const newPatientRowNumber = newPatientId + 1; // +1 for header row
       const ageColumn = 6; // Column F (age)
       patientsSheet.getRange(newPatientRowNumber, ageColumn).setFormula('=IF(E' + newPatientRowNumber + '=\"\",\"\",DATEDIF(DATE(RIGHT(E' + newPatientRowNumber + ',4),MID(E' + newPatientRowNumber + ',4,2),LEFT(E' + newPatientRowNumber + ',2)),TODAY(),\"Y\"))');
-    } else if (params.gender || params.dob) {
-      // Update existing patient with gender/dob if provided and not already set
-      const patientRowIndex = patientData.findIndex((row, idx) => idx > 0 && row[patientPhoneIndex] === params.phone);
-      if (patientRowIndex !== -1) {
-        const genderIndex = patientHeaders.indexOf('gender');
-        const dobIndex = patientHeaders.indexOf('dob');
-        
-        // Update gender if provided and current is empty
-        if (params.gender && !patientData[patientRowIndex][genderIndex]) {
-          patientsSheet.getRange(patientRowIndex + 1, genderIndex + 1).setValue(params.gender);
-        }
-        
-        // Update DOB if provided and current is empty
-        if (params.dob && !patientData[patientRowIndex][dobIndex]) {
-          patientsSheet.getRange(patientRowIndex + 1, dobIndex + 1).setValue(params.dob);
-        }
+    } else {
+      // Patient exists - update gender/dob if provided and empty
+      const patientRowIndex = existingPatientIndex + 1; // +1 because we sliced off header
+      const genderIndex = patientHeaders.indexOf('gender');
+      const dobIndex = patientHeaders.indexOf('dob');
+      
+      if (params.gender && !patientData[patientRowIndex][genderIndex]) {
+        // Force text format before setting value
+        const genderCol = genderIndex + 1;
+        patientsSheet.getRange(patientRowIndex + 1, genderCol).setNumberFormat('@');
+        patientsSheet.getRange(patientRowIndex + 1, genderCol).setValue(params.gender);
+      }
+      
+      if (params.dob && !patientData[patientRowIndex][dobIndex]) {
+        // Force text format before setting value
+        const dobCol = dobIndex + 1;
+        patientsSheet.getRange(patientRowIndex + 1, dobCol).setNumberFormat('@');
+        patientsSheet.getRange(patientRowIndex + 1, dobCol).setValue(params.dob);
       }
     }
   }
@@ -481,52 +496,18 @@ function createPatient(ss, params, e) {
   const allData = sheet.getDataRange().getValues();
   const headers = allData[0];
 
-  // Check if patient with same phone already exists
+  // Check if patient with same phone already exists (trim whitespace)
   const phoneIndex = headers.indexOf('phone');
-  const existingPatientRow = allData.slice(1).findIndex(row => row[phoneIndex] === params.phone);
+  const existingPatientRowIndex = allData.slice(1).findIndex(row => 
+    String(row[phoneIndex]).trim() === String(params.phone).trim()
+  );
   
-  if (existingPatientRow !== -1) {
-    // Patient exists - update their information instead of creating duplicate
-    const rowIndex = existingPatientRow + 1; // +1 because we sliced off header
-    const actualRowNumber = rowIndex + 1; // +1 for sheet row number (1-indexed)
-    
-    // Update fields if provided
-    const fieldsToUpdate = {
-      'name': params.name,
-      'gender': params.gender,
-      'dob': params.dob,
-      'googleDocLink': params.googleDocLink
-    };
-    
-    Object.keys(fieldsToUpdate).forEach(field => {
-      if (fieldsToUpdate[field]) {
-        const colIndex = headers.indexOf(field);
-        if (colIndex !== -1) {
-          // Only update if current value is empty or new value is provided
-          const currentValue = allData[rowIndex][colIndex];
-          if (!currentValue || fieldsToUpdate[field]) {
-            sheet.getRange(actualRowNumber, colIndex + 1).setValue(fieldsToUpdate[field]);
-          }
-        }
-      }
-    });
-    
-    // Return the existing patient ID
-    const existingId = allData[rowIndex][headers.indexOf('id')];
-    
+  if (existingPatientRowIndex !== -1) {
+    // Patient exists - return error so frontend doesn't create duplicate
+    // The auto-creation in createAppointment will handle it
     return createResponse({
-      success: true,
-      patient: {
-        id: existingId,
-        name: params.name,
-        phone: params.phone,
-        gender: params.gender,
-        dob: params.dob,
-        age: '',
-        totalAppointments: allData[rowIndex][headers.indexOf('totalAppointments')] || 0,
-        googleDocLink: params.googleDocLink || ''
-      },
-      message: 'Patient already exists - information updated'
+      success: false,
+      error: 'Patient with this phone number already exists'
     }, e);
   }
 
@@ -552,9 +533,15 @@ function createPatient(ss, params, e) {
   ];
 
   sheet.appendRow(newRow);
+  const newRowNumber = newId + 1; // ID + 1 for header row
+  
+  // Force gender and DOB columns to be TEXT to prevent Google Sheets auto-conversion
+  const genderCol = headers.indexOf('gender') + 1;
+  const dobCol = headers.indexOf('dob') + 1;
+  sheet.getRange(newRowNumber, genderCol).setNumberFormat('@'); // @ = Text format
+  sheet.getRange(newRowNumber, dobCol).setNumberFormat('@');
   
   // Copy age formula to the new row (parses DD-MM-YYYY format)
-  const newRowNumber = maxId + 2; // +1 for 0-index, +1 for header row
   const ageColumn = 6; // Column F (age)
   sheet.getRange(newRowNumber, ageColumn).setFormula('=IF(E' + newRowNumber + '="","",DATEDIF(DATE(RIGHT(E' + newRowNumber + ',4),MID(E' + newRowNumber + ',4,2),LEFT(E' + newRowNumber + ',2)),TODAY(),"Y"))');
 
@@ -597,6 +584,10 @@ function updatePatient(ss, params, e) {
     if (params[field] !== undefined) {
       const colIndex = headers.indexOf(field);
       if (colIndex !== -1) {
+        // Force text format for gender and dob to prevent auto-conversion
+        if (field === 'gender' || field === 'dob') {
+          sheet.getRange(rowIndex + 1, colIndex + 1).setNumberFormat('@');
+        }
         sheet.getRange(rowIndex + 1, colIndex + 1).setValue(params[field]);
       }
     }
@@ -913,6 +904,62 @@ function getTodayBackendDate() {
   const mm = String(today.getMonth() + 1).padStart(2, '0');
   const dd = String(today.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Ensure sheet columns are properly formatted as text
+ */
+function ensurePatientSheetTextFormat() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const patientsSheet = ss.getSheetByName(PATIENTS_SHEET);
+  
+  if (!patientsSheet) return;
+  
+  const data = patientsSheet.getDataRange().getValues();
+  if (data.length < 2) return; // Only header
+  
+  const headers = data[0];
+  const genderColIndex = headers.indexOf('gender');
+  const dobColIndex = headers.indexOf('dob');
+  
+  // Format entire columns as text to prevent auto-conversion
+  if (genderColIndex !== -1) {
+    const genderCol = genderColIndex + 1;
+    patientsSheet.getRange(genderCol + ':' + genderCol).setNumberFormat('@');
+  }
+  
+  if (dobColIndex !== -1) {
+    const dobCol = dobColIndex + 1;
+    patientsSheet.getRange(dobCol + ':' + dobCol).setNumberFormat('@');
+  }
+}
+
+/**
+ * Ensure Appointments sheet columns are properly formatted as text
+ */
+function ensureAppointmentSheetTextFormat() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const appointmentsSheet = ss.getSheetByName(APPOINTMENTS_SHEET);
+  
+  if (!appointmentsSheet) return;
+  
+  const data = appointmentsSheet.getDataRange().getValues();
+  if (data.length < 2) return; // Only header
+  
+  const headers = data[0];
+  const dateColIndex = headers.indexOf('date');
+  const timeColIndex = headers.indexOf('time');
+  
+  // Format entire columns as text to prevent auto-conversion
+  if (dateColIndex !== -1) {
+    const dateCol = dateColIndex + 1;
+    appointmentsSheet.getRange(dateCol + ':' + dateCol).setNumberFormat('@');
+  }
+  
+  if (timeColIndex !== -1) {
+    const timeCol = timeColIndex + 1;
+    appointmentsSheet.getRange(timeCol + ':' + timeCol).setNumberFormat('@');
+  }
 }
 
 /**
