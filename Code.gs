@@ -331,7 +331,7 @@ function createAppointment(ss, params, e) {
     timeValue,
     params.doctor || '',
     params.status || 'Scheduled',
-    params.paid || false, // paid status (new column)
+    toBool(params.paid), // paid status (new column)
     params.notes || '',
     params.createdBy || 'System',
     now,
@@ -402,7 +402,8 @@ function updateAppointment(ss, params, e) {
   if (params.paid !== undefined) {
     const paidColumn = headers.indexOf('paid');
     if (paidColumn !== -1) {
-      sheet.getRange(rowIndex + 1, paidColumn + 1).setValue(params.paid ? true : false);
+      const paid = toBool(params.paid);
+      sheet.getRange(rowIndex + 1, paidColumn + 1).setValue(paid);
       updates.push('paid');
     }
   }
@@ -874,6 +875,20 @@ function cleanValue(value) {
     return value.substring(1);
   }
   return value;
+}
+
+/**
+ * Convert various truthy/falsey representations to a proper boolean
+ */
+function toBool(val) {
+  if (val === undefined || val === null) return false;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    const v = val.trim().toLowerCase();
+    return v === 'true' || v === '1' || v === 'yes' || v === 'y' || v === 'on';
+  }
+  if (typeof val === 'number') return val !== 0;
+  return !!val;
 }
 
 /**
