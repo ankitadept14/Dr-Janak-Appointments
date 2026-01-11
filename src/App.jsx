@@ -1383,6 +1383,23 @@ function App() {
                               );
                             })()}
                           </td>
+                          <td>
+                            <input 
+                              type="checkbox" 
+                              checked={apt.paid || false}
+                              onChange={async (e) => {
+                                const result = await updateAppointment(apt.id, { paid: e.target.checked, updatedBy: currentUser.id });
+                                if (result.success) {
+                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: e.target.checked } : a));
+                                  setSuccess('Payment status updated');
+                                  setTimeout(() => setSuccess(null), 2000);
+                                } else {
+                                  setError(result.error || 'Failed to update payment status');
+                                }
+                              }}
+                              title="Mark as paid"
+                            />
+                          </td>
                           <td className="notes-cell">
                             {editingNoteId === apt.id ? (
                               <div className="inline-edit">
@@ -1602,6 +1619,23 @@ function App() {
                                 </button>
                               );
                             })()}
+                          </td>
+                          <td>
+                            <input 
+                              type="checkbox" 
+                              checked={apt.paid || false}
+                              onChange={async (e) => {
+                                const result = await updateAppointment(apt.id, { paid: e.target.checked, updatedBy: currentUser.id });
+                                if (result.success) {
+                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: e.target.checked } : a));
+                                  setSuccess('Payment status updated');
+                                  setTimeout(() => setSuccess(null), 2000);
+                                } else {
+                                  setError(result.error || 'Failed to update payment status');
+                                }
+                              }}
+                              title="Mark as paid"
+                            />
                           </td>
                           <td className="notes-cell">
                             {editingNoteId === apt.id ? (
