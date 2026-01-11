@@ -905,12 +905,18 @@ function App() {
                               type="checkbox" 
                               checked={apt.paid || false}
                               onChange={async (e) => {
-                                const result = await updateAppointment(apt.id, { paid: e.target.checked, updatedBy: currentUser.id });
+                                const newPaidStatus = e.target.checked;
+                                // Update UI immediately (optimistic update)
+                                setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: newPaidStatus } : a));
+                                
+                                // Then update backend
+                                const result = await updateAppointment(apt.id, { paid: newPaidStatus, updatedBy: currentUser.id });
                                 if (result.success) {
-                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: e.target.checked } : a));
                                   setSuccess('Payment status updated');
                                   setTimeout(() => setSuccess(null), 2000);
                                 } else {
+                                  // Revert on error
+                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: !newPaidStatus } : a));
                                   setError(result.error || 'Failed to update payment status');
                                 }
                               }}
@@ -1106,12 +1112,18 @@ function App() {
                               type="checkbox" 
                               checked={apt.paid || false}
                               onChange={async (e) => {
-                                const result = await updateAppointment(apt.id, { paid: e.target.checked, updatedBy: currentUser.id });
+                                const newPaidStatus = e.target.checked;
+                                // Update UI immediately (optimistic update)
+                                setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: newPaidStatus } : a));
+                                
+                                // Then update backend
+                                const result = await updateAppointment(apt.id, { paid: newPaidStatus, updatedBy: currentUser.id });
                                 if (result.success) {
-                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: e.target.checked } : a));
                                   setSuccess('Payment status updated');
                                   setTimeout(() => setSuccess(null), 2000);
                                 } else {
+                                  // Revert on error
+                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: !newPaidStatus } : a));
                                   setError(result.error || 'Failed to update payment status');
                                 }
                               }}
@@ -1388,12 +1400,18 @@ function App() {
                               type="checkbox" 
                               checked={apt.paid || false}
                               onChange={async (e) => {
-                                const result = await updateAppointment(apt.id, { paid: e.target.checked, updatedBy: currentUser.id });
+                                const newPaidStatus = e.target.checked;
+                                // Update UI immediately (optimistic update)
+                                setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: newPaidStatus } : a));
+                                
+                                // Then update backend
+                                const result = await updateAppointment(apt.id, { paid: newPaidStatus, updatedBy: currentUser.id });
                                 if (result.success) {
-                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: e.target.checked } : a));
                                   setSuccess('Payment status updated');
                                   setTimeout(() => setSuccess(null), 2000);
                                 } else {
+                                  // Revert on error
+                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: !newPaidStatus } : a));
                                   setError(result.error || 'Failed to update payment status');
                                 }
                               }}
@@ -1625,12 +1643,18 @@ function App() {
                               type="checkbox" 
                               checked={apt.paid || false}
                               onChange={async (e) => {
-                                const result = await updateAppointment(apt.id, { paid: e.target.checked, updatedBy: currentUser.id });
+                                const newPaidStatus = e.target.checked;
+                                // Update UI immediately (optimistic update)
+                                setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: newPaidStatus } : a));
+                                
+                                // Then update backend
+                                const result = await updateAppointment(apt.id, { paid: newPaidStatus, updatedBy: currentUser.id });
                                 if (result.success) {
-                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: e.target.checked } : a));
                                   setSuccess('Payment status updated');
                                   setTimeout(() => setSuccess(null), 2000);
                                 } else {
+                                  // Revert on error
+                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: !newPaidStatus } : a));
                                   setError(result.error || 'Failed to update payment status');
                                 }
                               }}
@@ -2139,6 +2163,113 @@ function App() {
                   {loading ? 'Creating...' : 'Create Appointment'}
                 </button>
               </form>
+            </section>
+          )}
+
+          {activeTab === 'payments' && (
+            <section className="card">
+              <div className="card-header">
+                <h2 className="card-title"><CheckCircle size={20} /> Payment Tracking</h2>
+                <button className="btn btn-icon" onClick={() => fetchAllData()} disabled={loading}>
+                  <RefreshCw size={18} className={loading ? 'spinning' : ''} />
+                </button>
+              </div>
+
+              {appointments.length === 0 ? (
+                <div className="empty-state"><Calendar size={48} /> <p>No appointments</p></div>
+              ) : (
+                <div className="appointments-table-wrapper">
+                  <table className="appointments-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Doctor</th>
+                        <th>Status</th>
+                        <th>Paid</th>
+                        <th>Payment Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {appointments
+                        .sort((a, b) => {
+                          if ((a.paid || false) !== (b.paid || false)) {
+                            return (a.paid || false) ? 1 : -1;
+                          }
+                          return new Date(b.date || 0) - new Date(a.date || 0);
+                        })
+                        .map(apt => (
+                          <tr key={apt.id} style={{ opacity: (apt.paid || false) ? 0.6 : 1 }}>
+                            <td>{apt.patientName}</td>
+                            <td>{apt.phone}</td>
+                            <td>{apt.displayDate || apt.date}</td>
+                            <td>{formatTimeDisplay(apt.time)}</td>
+                            <td>{apt.doctor}</td>
+                            <td>
+                              <span className={`badge badge-${(apt.status || 'Scheduled').toLowerCase()}`}>
+                                {apt.status || 'Scheduled'}
+                              </span>
+                            </td>
+                            <td>
+                              <input 
+                                type="checkbox" 
+                                checked={apt.paid || false}
+                                onChange={async (e) => {
+                                  const newPaidStatus = e.target.checked;
+                                  // Update UI immediately (optimistic update)
+                                  setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: newPaidStatus } : a));
+                                  
+                                  // Then update backend
+                                  const result = await updateAppointment(apt.id, { paid: newPaidStatus, updatedBy: currentUser.id });
+                                  if (result.success) {
+                                    setSuccess('Payment status updated');
+                                    setTimeout(() => setSuccess(null), 2000);
+                                  } else {
+                                    // Revert on error
+                                    setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, paid: !newPaidStatus } : a));
+                                    setError(result.error || 'Failed to update payment status');
+                                  }
+                                }}
+                                title="Mark as paid"
+                              />
+                            </td>
+                            <td>
+                              <span className={`badge ${(apt.paid || false) ? 'badge-success' : 'badge-warning'}`}>
+                                {(apt.paid || false) ? 'Paid' : 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {appointments.length > 0 && (
+                <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                  <h4>Payment Summary</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Total Appointments</p>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '20px', fontWeight: 'bold' }}>{appointments.length}</p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Paid</p>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '20px', fontWeight: 'bold', color: '#4caf50' }}>
+                        {appointments.filter(a => a.paid).length}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Pending Payment</p>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '20px', fontWeight: 'bold', color: '#ff9800' }}>
+                        {appointments.filter(a => !a.paid).length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </div>
