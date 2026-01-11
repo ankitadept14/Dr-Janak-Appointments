@@ -331,6 +331,7 @@ function createAppointment(ss, params, e) {
     timeValue,
     params.doctor || '',
     params.status || 'Scheduled',
+    params.paid || false, // paid status (new column)
     params.notes || '',
     params.createdBy || 'System',
     now,
@@ -395,6 +396,15 @@ function updateAppointment(ss, params, e) {
     const notesColumn = headers.indexOf('notes');
     sheet.getRange(rowIndex + 1, notesColumn + 1).setValue(params.notes);
     updates.push('notes');
+  }
+
+  // Update paid status
+  if (params.paid !== undefined) {
+    const paidColumn = headers.indexOf('paid');
+    if (paidColumn !== -1) {
+      sheet.getRange(rowIndex + 1, paidColumn + 1).setValue(params.paid ? true : false);
+      updates.push('paid');
+    }
   }
 
   // Update date/time (reschedule)

@@ -264,6 +264,7 @@ export async function updateAppointment(id, updates) {
 
     if (updates.status) body.append('status', updates.status);
     if (updates.notes !== undefined) body.append('notes', updates.notes);
+    if (updates.paid !== undefined) body.append('paid', updates.paid);
     if (updates.date && updates.time) {
       body.append('date', toBackendDate(updates.date));
       body.append('time', updates.time);
